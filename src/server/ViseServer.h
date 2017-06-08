@@ -113,6 +113,7 @@ class ViseServer {
   // resource dir
   boost::filesystem::path vise_datadir_;
   boost::filesystem::path vise_source_code_dir_;
+  boost::filesystem::path user_home_dir_;
   boost::filesystem::path vise_templatedir_;
   boost::filesystem::path vise_logdir_;
   boost::filesystem::path vise_enginedir_;
@@ -199,6 +200,7 @@ class ViseServer {
   void HandleStateGetRequest( std::string resource_name,
                               std::map< std::string, std::string> resource_args,
                               boost::shared_ptr<tcp::socket> p_socket);
+  void HandleDiredGetRequest(std::string dired_uri, boost::shared_ptr<tcp::socket> p_socket);
 
   void SendHttpResponse(std::string html, boost::shared_ptr<tcp::socket> p_socket);
   void SendHttpPostResponse(std::string http_post_data, std::string result, boost::shared_ptr<tcp::socket> p_socket);
@@ -263,7 +265,7 @@ class ViseServer {
   static const int STATE_INDEX      =  8;
   static const int STATE_QUERY      =  9;
 
-  ViseServer( boost::filesystem::path vise_datadir, boost::filesystem::path vise_src_code_dir );
+  ViseServer( boost::filesystem::path vise_datadir, boost::filesystem::path vise_src_code_dir, boost::filesystem::path user_home_dir );
   ~ViseServer();
 
   std::string GetCurrentStateName();

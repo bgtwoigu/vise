@@ -176,8 +176,8 @@ body {
 }
 
 /* State: Setting */
-#vise_setting {
-  padding: 1em 2em;
+.vise_setting {
+  padding: 1em 1rem;
 }
 
 /* State: Query */
@@ -251,3 +251,52 @@ ul.img_list.columns-4 li {
 ul.img_list li canvas {
 }
 
+/* Directory tree listing */
+.folder_selector {
+  font-family: Sans;
+  border: 1px solid black;
+  margin-left: 0rem;
+}
+
+.folder_selector .current_path {
+  display: block;
+  margin-left: 0;
+  padding: 1rem;
+  border-bottom: 1px solid black;
+}
+
+.folder_selector .current_path:before {
+  content: "Current folder: "
+}
+
+.folder_selector ul.dired {
+  list-style: none;
+  font-size: 0px;
+  margin: 0;
+  margin-left: -2%;
+}
+
+.folder_selector ul.dired li {
+  display: inline-block;
+  padding: 10px;
+  background: #ffffff;
+  margin-left: 1%;
+  margin-right: 1%;
+  margin-top: 0.8rem;
+  font-size: 16px;
+  font-size: 1rem;
+  vertical-align: top;
+  text-align: center;
+  /*border: 1px solid #cccccc;*/
+  background-color: #F9F9F9;
+}
+
+ul.dired li:before {
+  content: "🗀";
+  padding-right: 4px;
+}
+
+ul.dired li:hover {
+  cursor: pointer;
+  background-color: #F2F2F2;
+}

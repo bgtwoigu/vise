@@ -1,19 +1,45 @@
-<table id="vise_setting">
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>VISE</title>
+    <meta name="author" content="Abhishek Dutta">
+    <meta name="description" content="Page template of VGG Image Search Engine (VISE)">
+    <link rel="stylesheet" type="text/css" href="vise.css">
+</head>
+<body>
+<table class="vise_setting">
   <tr>
-    <td><h3>Basic Setting</h3></td>
+    <td><h3>Search Engine Setting</h3></td>
     <td>&nbsp;</td>
   </tr>
   <tr>
-    <td>imagePath</td>
-    <td><input class="vise_setting_param" type="text" name="imagePath" size="60" value="/data/datasets/vise/training_time_calibration/data/im_set_100/"></td>
-  </tr>
-  <tr>
-    <td><h3>Advanced Setting</h3></td>
-    <td>&nbsp;</td>
+    <td>Name</td>
+    <td>__SEARCH_ENGINE_NAME__</td>
   </tr>
   <tr>
     <td>Description</td>
-    <td><input class="vise_setting_param" type="text" name="projectTitle" value="ox5k calibration"></td>
+    <td><input class="vise_setting_param" type="text" name="projectTitle" size="40" value="My Image Search Project"></td>
+  </tr>
+  <tr>
+    <td>Location of images</td>
+    <td>
+      <div class="folder_selector">
+        <div id="dired_current_path" class="current_path">__DEFAULT_IMAGE_PATH__</div>
+        <ul id="dired_current_path_folders" class="dired"><!-- Dynamically Updated --></ul>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><p class="action_button" style="font-size: x-small;" onclick="_vise_toggle_advanced_settings()">Show/hide advanced settings</p></td>
+  </tr>
+</table>
+
+<table class="vise_setting" style="display: none;" id="vise_advanced_settings">
+  <tr>
+    <td><h3>Advanced Setting</h3></td>
+    <td>&nbsp;</td>
   </tr>
   <tr>
     <td>RootSIFT</td>
@@ -53,14 +79,11 @@
       </select>
     </td>
   </tr>
-  <tr>
-    <td>&nbsp;</td>
-    <td>&nbsp;</td>
-  </tr>
-  <tr>
-    <td>&nbsp;</td>
-    <td><input type="submit" name="Submit" value="Submit" onclick="_vise_send_setting_data()"></td>
-  </tr>
 </table>
 
-
+<table class="vise_setting">
+  <tr>
+    <td><input type="submit" name="Submit" value="Submit" onclick="_vise_send_setting_data()"></td>
+    <td>&nbsp;</td>
+  </tr>
+</table>

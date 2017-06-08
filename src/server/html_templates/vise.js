@@ -114,6 +114,12 @@ function _vise_server_response_listener() {
         // @todo handle post response, current assumption is that it will be OK
         // json['result'] === "OK"
         break;
+
+      case 'dired':
+        console.log(json);
+        _vise_handle_dired_response(json);
+        break;
+
       default:
         console.log("Do not know where to forward the received response!");
         console.log(response_str);
@@ -267,6 +273,16 @@ function _vise_handle_command(sender, command_str) {
     case "_control_panel":
       _vise_handle_control_panel_command(param);
       break;
+
+    case "_dired":
+      if ( param.startsWith("fetch") ) {
+        var param_split = param.split(' ');
+        _dired_current_path_name = param_split[1];
+        _vise_server.open("GET", VISE_SERVER_ADDRESS + "_dired?" + param_split[1]);
+        _vise_server.send();
+      }
+      break;
+
     case "_progress":
       var all_param = param.split(' ');
       for ( var i=0; i<all_param.length; i++ ) {
@@ -874,3 +890,46 @@ function img_comp_canvas_mouseup_listener(e) {
 // infinite scroll pane for image list
 //
 
+//
+// helper functions
+//
+function _vise_toggle_advanced_settings() {
+  var p = document.getElementById("vise_advanced_settings");
+  if ( p.style.display == "block" ) {
+    p.style.display = "none";
+  } else {
+    p.style.display = "block";
+  }
+}
+
+//
+// dired : folder selector
+//
+var _dired_current_path_name = "";
+var _dired_current_path_folders = [];
+
+function dired(path) {
+  _dired_current_path_name = document.getElementById("dired_current_path").innerHTML;
+  var separator = _dired_current_path_name.charAt( _dired_current_path_name.length - 1 );
+  _dired_current_path_name = _dired_current_path_name + path + separator;
+  fetch_dired_contents( _dired_current_path_name );
+}
+
+function fetch_dired_contents( path ) {
+  _vise_server.open("GET", VISE_SERVER_ADDRESS + "_dired?" + path);
+  _vise_server.send();
+}
+
+function _vise_handle_dired_response(json) {
+  if ( json.path === _dired_current_path_name ) {
+    document.getElementById("dired_current_path").innerHTML = _dired_current_path_name;
+    var p = document.getElementById("dired_current_path_folders");
+    p.innerHTML = "";
+    for ( var i=0; i < json.folders.length; i++ ) {
+      var folder = document.createElement("li");
+      folder.appendChild( document.createTextNode(json.folders[i]) );
+      folder.setAttribute( "onclick", "dired(\"" + json.folders[i] + "\")" );
+      p.appendChild( folder );
+    }
+  }
+}

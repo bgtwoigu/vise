@@ -11,10 +11,11 @@ const int ViseServer::STATE_HAMM;
 const int ViseServer::STATE_INDEX;
 const int ViseServer::STATE_QUERY;
 
-ViseServer::ViseServer( boost::filesystem::path vise_datadir, boost::filesystem::path vise_src_code_dir ) {
+ViseServer::ViseServer( boost::filesystem::path vise_datadir, boost::filesystem::path vise_src_code_dir, boost::filesystem::path user_home_dir ) {
   // set resource names
   vise_datadir_         = boost::filesystem::path(vise_datadir);
   vise_source_code_dir_ = boost::filesystem::path(vise_src_code_dir);
+  user_home_dir_        = user_home_dir;
   vise_templatedir_     = vise_source_code_dir_ / "src/server/html_templates/";
 
   if ( ! boost::filesystem::exists( vise_datadir_ ) ) {
@@ -463,6 +464,13 @@ void ViseServer::HandleConnection(boost::shared_ptr<tcp::socket> p_socket) {
       return;
     }
 
+    const std::string dired_prefix = "/_dired?";
+    if ( StringStartsWith(http_method_uri, dired_prefix) ) {
+      HandleDiredGetRequest( http_method_uri, p_socket );
+      p_socket->close();
+      return;
+    }
+
     // request for state html
     // Get /Cluster
     std::vector< std::string > tokens;
@@ -815,9 +823,11 @@ void ViseServer::HandleStateGetRequest( std::string resource_name,
   std::cout << "\nViseServer::HandleStateGetRequest() : resource_name = " << resource_name << std::flush;
   std::map< std::string, std::string >::iterator it;
 
+  /*
   for ( it=resource_args.begin(); it != resource_args.end(); it++) {
     std::cout << "\n\t" << it->first << " = " << it->second << std::flush;
   }
+  */
 
   int state_id = GetStateId( resource_name );
   if ( state_id != -1 ) {
@@ -835,8 +845,15 @@ void ViseServer::HandleStateGetRequest( std::string resource_name,
     } else {
       switch( state_id ) {
       case ViseServer::STATE_SETTING:
+        ReplaceString( state_html_list_.at(state_id), "__SEARCH_ENGINE_NAME__", search_engine_.GetName() );
+        ReplaceString( state_html_list_.at(state_id),
+                       "__DEFAULT_IMAGE_PATH__",
+                       user_home_dir_.string() + boost::filesystem::path::preferred_separator);
+
         SendCommand("_state show");
+        SendCommand("_dired fetch " + user_home_dir_.string() + boost::filesystem::path::preferred_separator );
         break;
+
       case ViseServer::STATE_INFO:
         state_html_list_.at( ViseServer::STATE_INFO ) = GetStateComplexityInfo();
         SendCommand("_control_panel add <div class=\"action_button\" onclick=\"_vise_server_send_state_post_request('Info', 'proceed')\">Proceed</div>");
@@ -1149,12 +1166,12 @@ void ViseServer::InitiateSearchEngineTraining() {
     }
   }
   /*
-  if ( vise_training_thread_->interruption_requested() ) {
+    if ( vise_training_thread_->interruption_requested() ) {
     SendLog("\nStopped training process on user request");
     SendCommand("_control_panel clear all");
     SendCommand("_control_panel add <div id=\"Training_button_continue\" class=\"action_button\" onclick=\"_vise_send_msg_to_training_process('continue')\">Continue</div>");
     return;
-  }
+    }
   */
 
   // Descriptor
@@ -1177,13 +1194,13 @@ void ViseServer::InitiateSearchEngineTraining() {
     }
   }
   /*
-  if ( vise_training_thread_->interruption_requested() ) {
+    if ( vise_training_thread_->interruption_requested() ) {
     SendLog("\nStopped training process on user request");
     SendCommand("_control_panel clear all");
     SendCommand("_control_panel add <div id=\"Training_button_continue\" class=\"action_button\" onclick=\"_vise_send_msg_to_training_process('continue')\">Continue</div>");
     return;
-  }
-*/
+    }
+  */
   // Cluster
   if ( state_id_ == ViseServer::STATE_CLUSTER ) {
     boost::timer::cpu_timer t_start;
@@ -1204,12 +1221,12 @@ void ViseServer::InitiateSearchEngineTraining() {
     }
   }
   /*
-  if ( vise_training_thread_->interruption_requested() ) {
+    if ( vise_training_thread_->interruption_requested() ) {
     SendLog("\nStopped training process on user request");
     SendCommand("_control_panel clear all");
     SendCommand("_control_panel add <div id=\"Training_button_continue\" class=\"action_button\" onclick=\"_vise_send_msg_to_training_process('continue')\">Continue</div>");
     return;
-  }
+    }
   */
 
   // Assign
@@ -1488,8 +1505,8 @@ void ViseServer::QueryInit() {
   /*
   // construct dataset
   dataset_ = new datasetV2( search_engine_.GetEngineConfigParam("dsetFn"),
-                            search_engine_.GetEngineConfigParam("databasePath"),
-                            search_engine_.GetEngineConfigParam("docMapFindPath") );
+  search_engine_.GetEngineConfigParam("databasePath"),
+  search_engine_.GetEngineConfigParam("docMapFindPath") );
 
   // load the search index in separate thread
   // while the user browses image list and prepares search area
@@ -1751,11 +1768,11 @@ void ViseServer::LoadSearchEngine( std::string search_engine_name ) {
   ResetToInitialState();
 
   /*
-  SendMessage("Loading search engine " + search_engine_name + " ...");
+    SendMessage("Loading search engine " + search_engine_name + " ...");
 
-  SendCommand("_log clear show");
-  SendCommand("_control_panel clear all");
-  SendCommand("_control_panel add <div id=\"LoadSearchEngine_button_continue\" class=\"action_button\" onclick=\"_vise_server_send_state_post_request('Info', 'proceed')\">Continue</div>");
+    SendCommand("_log clear show");
+    SendCommand("_control_panel clear all");
+    SendCommand("_control_panel add <div id=\"LoadSearchEngine_button_continue\" class=\"action_button\" onclick=\"_vise_server_send_state_post_request('Info', 'proceed')\">Continue</div>");
   */
   search_engine_.Init( search_engine_name, vise_enginedir_ );
   if ( !UpdateState() ) {
@@ -2028,6 +2045,50 @@ std::string ViseServer::GetHttpContentType( boost::filesystem::path fn) {
 }
 
 //
+// dired : send the names of folders present in a path
+//
+void ViseServer::HandleDiredGetRequest(std::string dired_uri, boost::shared_ptr<tcp::socket> p_socket) {
+  const std::string dired_prefix = "/_dired?";
+  std::string dir_str = dired_uri.substr(dired_prefix.length());
+  if ( dir_str.length() != 0 ) {
+    try {
+      boost::filesystem::path dir( dir_str );
+      boost::filesystem::directory_iterator dir_it( dir ), end_it;
+
+      std::ostringstream json;
+      json << "{ \"id\":\"dired\","
+           << "\"path\":\"" << dir.string() << "\","
+           << "\"folders\":[\"..\"";
+
+      std::locale locale;
+      while ( dir_it != end_it ) {
+        boost::filesystem::path p = dir_it->path();
+        boost::filesystem::file_status s = boost::filesystem::status( p );
+        unsigned int perm = s.permissions();
+        unsigned int user_perm = perm >> 6;
+        //std::cout << "\n\t" << p.string() << " : " << s.permissions() << " : " << user_perm << std::flush;
+
+        ++dir_it;
+        // user_perm of 4,5,6,7 correponds to read access for owner
+        if ( boost::filesystem::is_directory( p ) && user_perm > 3) {
+          std::string folder_name = p.filename().string();
+
+          if ( folder_name.substr(0,1) != "." ) {
+            json << ",\"" << p.filename().string() << "\"";
+          }
+        }
+      }
+
+      json << "]}";
+      SendJsonResponse( json.str(), p_socket );
+    } catch( std::exception &e ) {
+      std::cerr << "\nViseServer::HandleDiredGetRequest() : failed to retrive contents of [" << dir_str << "]";
+      std::cerr << "\n" << e.what() << std::flush;
+    }
+  }
+}
+
+
 // logging statistics
 //
 void ViseServer::AddTrainingStat(std::string dataset_name, std::string state_name, unsigned long time_sec, unsigned long space_bytes) {
