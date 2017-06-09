@@ -81,6 +81,7 @@ class ViseServer {
   std::vector< std::vector<double> > state_complexity_model_;
   std::vector< std::string > state_html_fn_list_;
   std::vector< std::string > state_html_list_;
+  std::vector< std::string > state_html_template_list_;
 
   // to terminate the VISE server
   bool vise_shutdown_flag_;
@@ -102,6 +103,8 @@ class ViseServer {
   // boost asio based server
   boost::asio::io_service io_service_;
   boost::asio::ip::tcp::acceptor *vise_acceptor_;
+  boost::system::error_code error_;
+  boost::array<char, 2048> buffer_;
 
   // html content location
   boost::filesystem::path vise_css_fn_;
@@ -149,8 +152,6 @@ class ViseServer {
   tfidfV2 *tfidf_;
   bool useHamm;
 
-  boost::system::error_code error_;
-
   // state maintainanace
   bool UpdateState();
   void ResetToInitialState();
@@ -196,6 +197,7 @@ class ViseServer {
 
   // HTTP connection handler
   void HandleConnection(boost::shared_ptr<tcp::socket> p_socket);
+  void OnRequestRead(const boost::system::error_code& e, std::size_t bytes_read);
   void HandleStatePostData( int state_id, std::string http_post_data, boost::shared_ptr<tcp::socket> p_socket );
   void HandleStateGetRequest( std::string resource_name,
                               std::map< std::string, std::string> resource_args,

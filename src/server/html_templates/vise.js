@@ -476,9 +476,9 @@ function _vise_fetch_random_image() {
 //
 function _vise_send_setting_data() {
   var postdata = [];
-  var vise_settings = document.getElementById("vise_setting");
-  if ( typeof vise_settings !== 'undefined' && vise_settings !== null ) {
-    var setting_param = vise_settings.getElementsByClassName("vise_setting_param");
+  var vise_basic_settings = document.getElementById("vise_basic_setting");
+  if ( typeof vise_basic_settings !== 'undefined' && vise_basic_settings !== null ) {
+    var setting_param = document.getElementsByClassName("vise_setting_param");
 
     for ( var i = 0; i < setting_param.length; i++) {
       var param_name  = setting_param[i].name;
@@ -486,7 +486,6 @@ function _vise_send_setting_data() {
       postdata.push( param_name + "=" + param_value );
     }
     var postdata_str = postdata.join('\n');
-
     _vise_server_send_state_post_request( _vise_current_state_name, postdata_str );
   }
 }

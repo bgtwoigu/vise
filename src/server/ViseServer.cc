@@ -12,12 +12,6 @@ const int ViseServer::STATE_INDEX;
 const int ViseServer::STATE_QUERY;
 
 ViseServer::ViseServer( boost::filesystem::path vise_datadir, boost::filesystem::path vise_src_code_dir, boost::filesystem::path user_home_dir ) {
-
-  // debug
-  std::string s = "folder%20name%20with%20space";
-  UnescapeHttpString(s);
-  std::cout << "\ns = " << s << std::endl;
-
   // set resource names
   vise_datadir_         = boost::filesystem::path(vise_datadir);
   vise_source_code_dir_ = boost::filesystem::path(vise_src_code_dir);
@@ -129,6 +123,7 @@ ViseServer::ViseServer( boost::filesystem::path vise_datadir, boost::filesystem:
     boost::filesystem::path fn = vise_templatedir_ / state_html_fn_list_.at(i);
     LoadFile( fn.string(), state_html_list_.at(i) );
   }
+  state_html_template_list_ = state_html_list_;
 
   vise_index_html_reload_ = true;
 
@@ -340,21 +335,21 @@ bool ViseServer::Stop() {
 }
 
 void ViseServer::HandleConnection(boost::shared_ptr<tcp::socket> p_socket) {
-  char http_buffer[1024];
-
-  // get the http_method : {GET, POST, ...}
-  size_t len = p_socket->read_some(boost::asio::buffer(http_buffer), error_);
+  size_t bytes_read = p_socket->read_some(boost::asio::buffer( buffer_ ), error_);
   if ( error_ ) {
-    std::cerr << "\nViseServer::HandleConnection() : error using read_some()\n"
-              << error_.message() << std::flush;
+    std::cerr << "ViseServer::HandleConnection() : error reading http request" << std::endl;
+    std::cerr << error_.message() << std::endl;
+    boost::system::error_code ignored_err;
+    p_socket->shutdown( boost::asio::ip::tcp::socket::shutdown_both, ignored_err );
+    return;
   }
-  std::string http_method  = std::string(http_buffer, 4);
-  std::string http_request = std::string(http_buffer, len);
+  std::string http_request(buffer_.data(), buffer_.data() + bytes_read);
+  std::string http_method  = http_request.substr(0, 4);
   std::string http_method_uri;
   ExtractHttpResource(http_request, http_method_uri);
 
   // for debug
-  std::cout << "\n" << http_method << " " << http_method_uri << std::flush;
+  std::cout << "\n" << http_method << " " << http_method_uri << " [http request = " << http_request.length() << "]" << std::flush;
   //std::cout << "\nRequest = " << http_request << std::flush;
 
   if ( http_method == "GET " ) {
@@ -522,11 +517,14 @@ void ViseServer::HandleConnection(boost::shared_ptr<tcp::socket> p_socket) {
             SendMessage("Search engine by that name already exists!");
           } else {
             if ( search_engine_.IsEngineNameValid( search_engine_name ) ) {
+              state_id_ = ViseServer::STATE_NOT_LOADED;
               search_engine_.Init( search_engine_name, vise_enginedir_ );
+
               if ( UpdateState() ) {
                 // send control message : state updated
                 SendCommand("_state update_now");
                 SendHttpPostResponse( http_post_data, "OK", p_socket );
+                SendCommand("_state update_now");
               } else {
                 SendMessage("Cannot initialize search engine [" + search_engine_name + "]");
                 SendHttpPostResponse( http_post_data, "ERR", p_socket );
@@ -660,6 +658,7 @@ void ViseServer::SendHttpResponse(std::string response, boost::shared_ptr<tcp::s
   http_response << "Content-Encoding: utf-8\r\n";
   http_response << "Content-Length: " << response.length() << "\r\n";
   http_response << "\r\n";
+
   boost::asio::write( *p_socket, boost::asio::buffer(http_response.str()) );
   boost::asio::write( *p_socket, boost::asio::buffer(response) );
 
@@ -831,19 +830,12 @@ void ViseServer::SendHttpRedirect( std::string redirect_uri,
 void ViseServer::HandleStateGetRequest( std::string resource_name,
                                         std::map< std::string, std::string> resource_args,
                                         boost::shared_ptr<tcp::socket> p_socket ) {
-  std::cout << "\nViseServer::HandleStateGetRequest() : resource_name = " << resource_name << std::flush;
+  //std::cout << "\nViseServer::HandleStateGetRequest() : resource_name = " << resource_name << std::flush;
   std::map< std::string, std::string >::iterator it;
-
-  /*
-  for ( it=resource_args.begin(); it != resource_args.end(); it++) {
-    std::cout << "\n\t" << it->first << " = " << it->second << std::flush;
-  }
-  */
 
   int state_id = GetStateId( resource_name );
   if ( state_id != -1 ) {
-    if ( state_id == ViseServer::STATE_QUERY &&
-         GetCurrentStateId() == ViseServer::STATE_QUERY ) {
+    if ( state_id == ViseServer::STATE_QUERY && GetCurrentStateId() == ViseServer::STATE_QUERY ) {
       return;
       /*
       if ( resource_args.empty() ) {
@@ -856,6 +848,7 @@ void ViseServer::HandleStateGetRequest( std::string resource_name,
     } else {
       switch( state_id ) {
       case ViseServer::STATE_SETTING:
+        state_html_list_.at(state_id) = state_html_template_list_.at(state_id);
         ReplaceString( state_html_list_.at(state_id), "__SEARCH_ENGINE_NAME__", search_engine_.GetName() );
         SendCommand("_state show");
         SendCommand("_dired fetch " + user_home_dir_.string() );
@@ -870,7 +863,6 @@ void ViseServer::HandleStateGetRequest( std::string resource_name,
       return;
     }
   }
-  SendHttp404NotFound( p_socket );
 }
 
 void ViseServer::HandleQueryGetRequest(std::string http_method_uri, boost::shared_ptr<tcp::socket> p_socket) {

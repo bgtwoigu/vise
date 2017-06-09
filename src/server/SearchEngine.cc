@@ -10,13 +10,6 @@ SearchEngine::SearchEngine() {
   acceptable_img_ext_.insert( ".pgm" );
   acceptable_img_ext_.insert( ".pnm" );
   acceptable_img_ext_.insert( ".ppm" );
-
-  /*
-  uint32_t n_desc;
-  uint32_t desc_dim;
-  GetTrainDescSize("/home/tlm/vise/search_engines/ox5k/training_data/train_descs.e3bin", n_desc, desc_dim);
-  std::cout << "\nn_desc=" << n_desc << ", desc_dim=" << desc_dim << std::flush;
-  */
 }
 
 void SearchEngine::Init(std::string name, boost::filesystem::path basedir) {

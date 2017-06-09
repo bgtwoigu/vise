@@ -287,10 +287,6 @@ ul.img_list li canvas {
   padding-right: 4px;
 }
 
-.folder_selector ul.dired li:before:hover {
-  color: red;
-}
-
 .folder_selector ul.dired li:hover {
   cursor: pointer;
   background-color: #F2F2F2;
