@@ -21,15 +21,23 @@
     <td>Description</td>
     <td><input class="vise_setting_param" type="text" name="projectTitle" size="40" value="My Image Search Project"></td>
   </tr>
+</table>
+
+<div class="vise_setting">
   <tr>
-    <td>Location of images</td>
-    <td>
-      <div class="folder_selector">
-        <div id="dired_current_path" class="current_path">__DEFAULT_IMAGE_PATH__</div>
-        <ul id="dired_current_path_folders" class="dired"><!-- Dynamically Updated --></ul>
-      </div>
+    <td>Location of images&nbsp;&nbsp;</td>
+    <td><input id="dired_current_path" class="vise_setting_param" type="text" name="imagePath" size="60" value="" readonly></td>
+  </tr>
+  <tr>
+    <td colspan="2">
+    <div class="folder_selector" style="width: 100%">
+      <ul id="dired_current_path_folders" class="dired"><!-- Dynamically Updated --></ul>
+    </div>
     </td>
   </tr>
+</div>
+
+<table class="vise_setting">
   <tr>
     <td></td>
     <td><p class="action_button" style="font-size: x-small;" onclick="_vise_toggle_advanced_settings()">Show/hide advanced settings</p></td>

@@ -43,7 +43,6 @@ int main(int argc, char** argv) {
   }
 
   ViseServer vise_server( data_home, vise_src_code_dir, user_home_dir );
-
   vise_server.Start(port);
 
   // server is stopped by sending the following HTTP POST request

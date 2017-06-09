@@ -101,6 +101,10 @@ function _vise_server_response_listener() {
   var response_str = this.responseText;
   var content_type = this.getResponseHeader('Content-Type')
 
+  if ( !content_type ) {
+    return;
+  }
+
   if ( content_type.includes("text/html") ) {
     document.getElementById("content").innerHTML = response_str;
   } else if ( content_type.includes("application/json") ) {
@@ -116,7 +120,6 @@ function _vise_server_response_listener() {
         break;
 
       case 'dired':
-        console.log(json);
         _vise_handle_dired_response(json);
         break;
 
@@ -278,7 +281,7 @@ function _vise_handle_command(sender, command_str) {
       if ( param.startsWith("fetch") ) {
         var param_split = param.split(' ');
         _dired_current_path_name = param_split[1];
-        _vise_server.open("GET", VISE_SERVER_ADDRESS + "_dired?" + param_split[1]);
+        _vise_server.open("GET", VISE_SERVER_ADDRESS + "_dired?path=" + _dired_current_path_name + "&folder=.");
         _vise_server.send();
       }
       break;
@@ -908,28 +911,25 @@ function _vise_toggle_advanced_settings() {
 var _dired_current_path_name = "";
 var _dired_current_path_folders = [];
 
-function dired(path) {
-  _dired_current_path_name = document.getElementById("dired_current_path").innerHTML;
-  var separator = _dired_current_path_name.charAt( _dired_current_path_name.length - 1 );
-  _dired_current_path_name = _dired_current_path_name + path + separator;
-  fetch_dired_contents( _dired_current_path_name );
+function dired(folder) {
+  fetch_dired_contents( _dired_current_path_name, folder );
 }
 
-function fetch_dired_contents( path ) {
-  _vise_server.open("GET", VISE_SERVER_ADDRESS + "_dired?" + path);
+function fetch_dired_contents( path, folder ) {
+  _vise_server.open("GET", VISE_SERVER_ADDRESS + "_dired?path=" + path + "&folder=" + folder);
   _vise_server.send();
 }
 
 function _vise_handle_dired_response(json) {
-  if ( json.path === _dired_current_path_name ) {
-    document.getElementById("dired_current_path").innerHTML = _dired_current_path_name;
-    var p = document.getElementById("dired_current_path_folders");
-    p.innerHTML = "";
-    for ( var i=0; i < json.folders.length; i++ ) {
-      var folder = document.createElement("li");
-      folder.appendChild( document.createTextNode(json.folders[i]) );
-      folder.setAttribute( "onclick", "dired(\"" + json.folders[i] + "\")" );
-      p.appendChild( folder );
-    }
+  _dired_current_path_name = json.path;
+  document.getElementById("dired_current_path").value = _dired_current_path_name;
+  var p = document.getElementById("dired_current_path_folders");
+  p.innerHTML = "";
+  for ( var i=0; i < json.folders.length; i++ ) {
+    var folder = document.createElement("li");
+    folder.appendChild( document.createTextNode(json.folders[i]) );
+    folder.setAttribute( "onclick", "dired(\"" + json.folders[i] + "\")" );
+    p.appendChild( folder );
   }
+
 }

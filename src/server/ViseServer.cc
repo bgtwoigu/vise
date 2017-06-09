@@ -12,6 +12,12 @@ const int ViseServer::STATE_INDEX;
 const int ViseServer::STATE_QUERY;
 
 ViseServer::ViseServer( boost::filesystem::path vise_datadir, boost::filesystem::path vise_src_code_dir, boost::filesystem::path user_home_dir ) {
+
+  // debug
+  std::string s = "folder%20name%20with%20space";
+  UnescapeHttpString(s);
+  std::cout << "\ns = " << s << std::endl;
+
   // set resource names
   vise_datadir_         = boost::filesystem::path(vise_datadir);
   vise_source_code_dir_ = boost::filesystem::path(vise_src_code_dir);
@@ -464,7 +470,7 @@ void ViseServer::HandleConnection(boost::shared_ptr<tcp::socket> p_socket) {
       return;
     }
 
-    const std::string dired_prefix = "/_dired?";
+    const std::string dired_prefix = "/_dired?path=";
     if ( StringStartsWith(http_method_uri, dired_prefix) ) {
       HandleDiredGetRequest( http_method_uri, p_socket );
       p_socket->close();
@@ -804,6 +810,11 @@ void ViseServer::SendHttp404NotFound(boost::shared_ptr<tcp::socket> p_socket) {
   boost::asio::write( *p_socket, boost::asio::buffer(http_response.str()) );
 }
 
+void ViseServer::SendHttp400BadRequest(boost::shared_ptr<tcp::socket> p_socket) {
+  std::string http_response = "HTTP/1.1 400 Bad Request\r\n\r\n";
+  boost::asio::write( *p_socket, boost::asio::buffer(http_response) );
+}
+
 void ViseServer::SendHttpRedirect( std::string redirect_uri,
                                    boost::shared_ptr<tcp::socket> p_socket)
 {
@@ -846,12 +857,8 @@ void ViseServer::HandleStateGetRequest( std::string resource_name,
       switch( state_id ) {
       case ViseServer::STATE_SETTING:
         ReplaceString( state_html_list_.at(state_id), "__SEARCH_ENGINE_NAME__", search_engine_.GetName() );
-        ReplaceString( state_html_list_.at(state_id),
-                       "__DEFAULT_IMAGE_PATH__",
-                       user_home_dir_.string() + boost::filesystem::path::preferred_separator);
-
         SendCommand("_state show");
-        SendCommand("_dired fetch " + user_home_dir_.string() + boost::filesystem::path::preferred_separator );
+        SendCommand("_dired fetch " + user_home_dir_.string() );
         break;
 
       case ViseServer::STATE_INFO:
@@ -1991,7 +1998,6 @@ bool ViseServer::ReplaceString(std::string &s, std::string old_str, std::string 
     s.replace(pos, old_str.length(), new_str);
     return true;
   }
-
 }
 
 void ViseServer::SplitString( const std::string s, char sep, std::vector<std::string> &tokens ) {
@@ -2017,6 +2023,20 @@ bool ViseServer::StringStartsWith( const std::string &s, const std::string &pref
   }
 }
 
+void ViseServer::UnescapeHttpString( std::string &s ) {
+  std::string::size_type pos = 0;
+  std::string::size_type old_pos = 0;
+  const std::string utf_space = "%20";
+  while ( pos < s.length() ) {
+    pos = s.find(utf_space, old_pos);
+    if ( pos == std::string::npos ) {
+      return;
+    } else {
+      s.replace(pos, utf_space.length(), " ");
+      old_pos = pos;
+    }
+  }
+}
 
 bool ViseServer::SearchEngineExists( std::string search_engine_name ) {
   // iterate through all directories in vise_enginedir_
@@ -2047,34 +2067,60 @@ std::string ViseServer::GetHttpContentType( boost::filesystem::path fn) {
 //
 // dired : send the names of folders present in a path
 //
-void ViseServer::HandleDiredGetRequest(std::string dired_uri, boost::shared_ptr<tcp::socket> p_socket) {
-  const std::string dired_prefix = "/_dired?";
-  std::string dir_str = dired_uri.substr(dired_prefix.length());
-  if ( dir_str.length() != 0 ) {
-    try {
-      boost::filesystem::path dir( dir_str );
-      boost::filesystem::directory_iterator dir_it( dir ), end_it;
+void ViseServer::HandleDiredGetRequest(const std::string& dired_uri, boost::shared_ptr<tcp::socket> p_socket) {
+  const std::string dired_prefix = "/_dired?path=";
+  const std::string folder_prefix = "&folder=";
 
+  std::size_t folder_pos = dired_uri.find( folder_prefix, dired_prefix.length() );
+  //std::cout << "\nuri = " << dired_uri << " : " << folder_pos << std::flush;
+  if ( folder_pos == std::string::npos ) {
+    SendHttp400BadRequest(p_socket);
+    return;
+  }
+  std::string path_str = dired_uri.substr( dired_prefix.length(), folder_pos - dired_prefix.length() );
+  std::string folder_str = dired_uri.substr( folder_pos + folder_prefix.length() );
+
+  if ( path_str.find("%") != std::string::npos ) {
+    UnescapeHttpString(path_str);
+  }
+  if ( folder_str.find("%") != std::string::npos ) {
+    UnescapeHttpString(folder_str);
+  }
+
+  boost::filesystem::path p( path_str );
+  boost::filesystem::path fp = p / boost::filesystem::path( folder_str );
+
+  //std::cout << "\npath_str = " << path_str << ", folder_str = " << folder_str << std::flush;
+  if ( boost::filesystem::exists( p ) && boost::filesystem::exists( fp ) ) {
+    try {
+      boost::filesystem::path cp = boost::filesystem::canonical( fp );
+      if ( !boost::filesystem::exists( cp ) ) {
+        SendHttp400BadRequest(p_socket);
+        return;
+      }
+      boost::filesystem::directory_iterator dir_it( cp ), end_it;
+
+      //std::cout << "\n\tp = " << p.string() << ", fp = " << fp.string() << ", cp = " << cp.string() <<std::flush;
       std::ostringstream json;
       json << "{ \"id\":\"dired\","
-           << "\"path\":\"" << dir.string() << "\","
+           << "\"path\":\"" << cp.string() << "\","
            << "\"folders\":[\"..\"";
 
       std::locale locale;
       while ( dir_it != end_it ) {
-        boost::filesystem::path p = dir_it->path();
-        boost::filesystem::file_status s = boost::filesystem::status( p );
+        boost::filesystem::path dir = dir_it->path();
+        boost::filesystem::file_status s = boost::filesystem::status( dir );
         unsigned int perm = s.permissions();
         unsigned int user_perm = perm >> 6;
-        //std::cout << "\n\t" << p.string() << " : " << s.permissions() << " : " << user_perm << std::flush;
+        //unsigned int other_perm = perm & 7;
 
         ++dir_it;
         // user_perm of 4,5,6,7 correponds to read access for owner
-        if ( boost::filesystem::is_directory( p ) && user_perm > 3) {
-          std::string folder_name = p.filename().string();
-
+        if ( boost::filesystem::is_directory( dir ) && user_perm > 3) {
+          std::string folder_name = dir.filename().string();
+          //std::cout << "\n\tfolder = " << dir.filename().string() << " : " << s.permissions() << " : " << user_perm << " : " << other_perm << std::flush;
           if ( folder_name.substr(0,1) != "." ) {
-            json << ",\"" << p.filename().string() << "\"";
+            json << ",\"" << dir.filename().string() << "\"";
           }
         }
       }
@@ -2082,9 +2128,13 @@ void ViseServer::HandleDiredGetRequest(std::string dired_uri, boost::shared_ptr<
       json << "]}";
       SendJsonResponse( json.str(), p_socket );
     } catch( std::exception &e ) {
-      std::cerr << "\nViseServer::HandleDiredGetRequest() : failed to retrive contents of [" << dir_str << "]";
+      std::cerr << "\nViseServer::HandleDiredGetRequest() : failed to retrive contents of [" << fp.string() << "]";
       std::cerr << "\n" << e.what() << std::flush;
+      SendHttp400BadRequest(p_socket);
+      return;
     }
+  } else {
+    SendHttp400BadRequest(p_socket);
   }
 }
 

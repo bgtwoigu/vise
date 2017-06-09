@@ -200,11 +200,12 @@ class ViseServer {
   void HandleStateGetRequest( std::string resource_name,
                               std::map< std::string, std::string> resource_args,
                               boost::shared_ptr<tcp::socket> p_socket);
-  void HandleDiredGetRequest(std::string dired_uri, boost::shared_ptr<tcp::socket> p_socket);
+  void HandleDiredGetRequest(const std::string& dired_uri, boost::shared_ptr<tcp::socket> p_socket);
 
   void SendHttpResponse(std::string html, boost::shared_ptr<tcp::socket> p_socket);
   void SendHttpPostResponse(std::string http_post_data, std::string result, boost::shared_ptr<tcp::socket> p_socket);
   void SendHttp404NotFound(boost::shared_ptr<tcp::socket> p_socket);
+  void SendHttp400BadRequest(boost::shared_ptr<tcp::socket> p_socket);
   void SendHttpRedirect(std::string redirect_uri, boost::shared_ptr<tcp::socket> p_socket);
   void SendErrorResponse(std::string message, std::string backtrace, boost::shared_ptr<tcp::socket> p_socket);
   void SendRawResponse(std::string content_type, std::string content, boost::shared_ptr<tcp::socket> p_socket);
@@ -228,6 +229,7 @@ class ViseServer {
   bool ReplaceString(std::string &s, std::string old_str, std::string new_str);
   bool StringStartsWith( const std::string &s, const std::string &prefix );
   std::string GetHttpContentType(boost::filesystem::path fn);
+  void UnescapeHttpString( std::string &s );
 
   // TEMPORARY -- WILL BE REMOVED IN FUTURE
   // setup relja_retrival backend and frontend (temporary, until JS based frontend is ready)
