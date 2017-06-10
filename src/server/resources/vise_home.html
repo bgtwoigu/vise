@@ -1,0 +1,11 @@
+<div id="create_engine_panel">
+  <input id="vise_search_engine_name" name="vise_search_engine_name" value="engine_name" onclick="document.getElementById('vise_search_engine_name').value=''" size="20" autocomplete="on" />
+  <div class="action_button" onclick="_vise_create_search_engine()">&nbsp;&nbsp;Create</div>
+  <div class="action_button" style="color: red;" onclick="_vise_delete_search_engine()">&nbsp;&nbsp;Delete</div>
+</div>
+<div id="load_engine_panel">
+  <h3>Existing Search Engines</h3>
+<!-- Search Engine List will be added dynamically by ViseServer -->
+__SEARCH_ENGINE_LIST__
+</div>
+

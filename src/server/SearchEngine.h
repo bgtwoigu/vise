@@ -30,6 +30,8 @@
 #include <Magick++.h>            // to transform images
 
 #include "ViseMessageQueue.h"
+#include "ViseUtils.h"
+#include "Resources.h"
 
 #include "feat_standard.h"
 #include "train_descs.h"
@@ -41,8 +43,28 @@
 class SearchEngine {
 public:
 
-  SearchEngine();
-  void Init(std::string name, boost::filesystem::path engine_dir );
+  SearchEngine(boost::filesystem::path engine_dir, Resources* resources);
+  void Init(std::string name);
+
+  // search engine possible states
+  static const int STATE_NOT_LOADED;
+  static const int STATE_SETTING;
+  static const int STATE_INFO;
+  static const int STATE_PREPROCESS;
+  static const int STATE_DESCRIPTOR;
+  static const int STATE_CLUSTER;
+  static const int STATE_ASSIGN;
+  static const int STATE_HAMM ;
+  static const int STATE_INDEX;
+  static const int STATE_QUERY;
+
+  std::string GetCurrentStateName();
+  std::string GetCurrentStateInfo();
+  std::string GetStateName( int state_id );
+  std::string GetStateInfo( int state_id );
+
+  int GetCurrentStateId();
+  bool UpdateState();
 
   void Preprocess();
   void Descriptor();
@@ -87,13 +109,37 @@ public:
 
   void LoadImglist();
   void CreateFileList();
-  bool IsEngineNameValid(std::string engine_name);
   void WriteConfigToFile();
   void ReadConfigFromFile();
   std::string GetImglistFn( unsigned int index );
 
+  // static methods to help with search engine management
+  static bool ValidateName(std::string engine_name);
+  bool Exists( const std::string search_engine_name );
+  void GetSearchEngineList( std::vector< std::string >& engine_list ) const;
+  bool Delete( const std::string search_engine_name );
+
  private:
   std::string engine_name_;
+
+  Resources* resources_;
+
+  // state variables
+  int state_id_;
+  std::vector< int > state_id_list_;
+  std::vector< std::string > state_name_list_;
+  std::vector< std::string > state_info_list_;
+  std::vector< std::vector<double> > state_complexity_model_;
+  std::vector< std::string > state_html_fn_list_;
+  std::vector< std::string > state_html_list_;
+  std::vector< std::string > state_html_template_list_;
+  std::vector<double> total_complexity_model_;
+  std::string state_complexity_info_;
+  std::string complexity_model_assumption_;
+
+  boost::system::error_code error_;
+
+  void LoadStateResources();
 
   boost::filesystem::path basedir_;
   boost::filesystem::path enginedir_;

@@ -238,11 +238,10 @@ endif()
 # set( CMAKE_CXX_FLAGS "-Wall -Wno-unused-local-typedefs -DEIGEN_NO_DEBUG -O0 -g3")
 
 
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-
 add_executable( vise vise.cc )
 target_link_libraries( vise ViseServer ${ImageMagick_LIBRARIES} ${Boost_LIBRARIES})
 
+include_directories(${CMAKE_SOURCE_DIR})
 include_directories( api )
 include_directories( compression )
 include_directories( evaluation )

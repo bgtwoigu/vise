@@ -26,6 +26,8 @@
 
 #include "SearchEngine.h"
 #include "Resources.h"
+#include "ViseMessageQueue.h"
+#include "ViseUtils.h"
 
 class Connection : public boost::enable_shared_from_this<Connection>, private boost::noncopyable
 {
@@ -94,6 +96,7 @@ class Connection : public boost::enable_shared_from_this<Connection>, private bo
   // Helper functions
   bool GetHttpHeaderValue(const std::string& header, const std::string& name, std::string& value);
   std::string GetFileContentType( const boost::filesystem::path& fn);
+  bool StringStartsWith( const std::string &s, const std::string &prefix );
 
   // HTTP Responses
   void WriteResponse();
@@ -102,6 +105,13 @@ class Connection : public boost::enable_shared_from_this<Connection>, private bo
   void SendHtmlResponse(const std::string &html);
   void SendImageResponse(const boost::filesystem::path &im_fn);
   void SendImageResponse(Magick::Image &im, std::string content_type);
+  void SendHttpPostResponse(std::string http_post_data, std::string result);
+
+  // ViseMessageQueue
+  void SendMessage(std::string message);
+  void SendCommand(std::string command);
+  void SendPacket(std::string type, std::string message);
+
 };
 
 #endif

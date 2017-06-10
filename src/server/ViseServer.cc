@@ -49,12 +49,12 @@ ViseServer::ViseServer( const std::string address, const std::string port, std::
   acceptor_.bind( endpoint );
   acceptor_.listen();
 
-  // search engine
-  search_engine_ = new SearchEngine();
-
   // server resources
   resources_ = new Resources();
   resources_->LoadAllResources(vise_resourcedir_);
+
+  // search engine
+  search_engine_ = new SearchEngine(vise_enginedir_, resources_);
 
   server_connection_count_ = 0;
   AcceptNewConnection();
@@ -64,6 +64,9 @@ ViseServer::ViseServer( const std::string address, const std::string port, std::
 }
 
 ViseServer::~ViseServer() {
+  delete search_engine_;
+  delete resources_;
+
   std::cout << "\nServed " << server_connection_count_ << " HTTP requests using " 
             << thread_pool_size_ << " threads. It is now time to say bye :-)\n" << std::flush;
 }
@@ -98,6 +101,11 @@ void ViseServer::HandleConnection(const boost::system::error_code& e) {
 
 void ViseServer::Stop() {
   std::cout << "\n\nServer shutting down ..." << std::flush;
+
+  // Send last message to unblock the ViseMessageQueue
+  // this is required because a client connection is always present to deliver
+  // any new messages to the client
+  ViseMessageQueue::Instance()->Push( "Bye" );
+
   io_service_.stop();
 }
-

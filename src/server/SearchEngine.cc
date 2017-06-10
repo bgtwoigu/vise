@@ -1,6 +1,22 @@
 #include "SearchEngine.h"
 
-SearchEngine::SearchEngine() {
+// search engine possible states
+const int SearchEngine::STATE_NOT_LOADED =  0;
+const int SearchEngine::STATE_SETTING    =  1;
+const int SearchEngine::STATE_INFO       =  2;
+const int SearchEngine::STATE_PREPROCESS =  3;
+const int SearchEngine::STATE_DESCRIPTOR =  4;
+const int SearchEngine::STATE_CLUSTER    =  5;
+const int SearchEngine::STATE_ASSIGN     =  6;
+const int SearchEngine::STATE_HAMM       =  7;
+const int SearchEngine::STATE_INDEX      =  8;
+const int SearchEngine::STATE_QUERY      =  9;
+
+SearchEngine::SearchEngine(boost::filesystem::path basedir, Resources* resources) {
+  basedir_   = boost::filesystem::path(basedir);
+  resources_ = resources;
+
+  state_id_ = SearchEngine::STATE_NOT_LOADED;
   engine_name_ = "";
   engine_config_.clear();
 
@@ -12,10 +28,10 @@ SearchEngine::SearchEngine() {
   acceptable_img_ext_.insert( ".ppm" );
 }
 
-void SearchEngine::Init(std::string name, boost::filesystem::path basedir) {
+void SearchEngine::Init(std::string name) {
   engine_name_ = name;
-  basedir_ = boost::filesystem::path(basedir);
   engine_config_.clear();
+  state_id_ = SearchEngine::STATE_NOT_LOADED;
 
   boost::filesystem::path engine_name( engine_name_ );
   enginedir_ = basedir_ / engine_name;
@@ -49,6 +65,9 @@ void SearchEngine::Init(std::string name, boost::filesystem::path basedir) {
       boost::filesystem::create_directory( tmp_datadir_ );
     }
   }
+
+  // load state name, description, complexity model, html files, etc
+  LoadStateResources();
 }
 
 //
@@ -587,25 +606,6 @@ void SearchEngine::SendPacket(std::string sender, std::string type, std::string 
 //
 // Helper methods
 //
-bool SearchEngine::IsEngineNameValid(std::string engine_name) {
-  // search engine name cannot contain:
-  //  - spaces
-  //  - special characters (*, ?, /)
-  std::size_t space = engine_name.find(' ');
-  std::size_t asterix = engine_name.find('*');
-  std::size_t qmark = engine_name.find('?');
-  std::size_t fslash = engine_name.find('/');
-
-  if ( space == std::string::npos ||
-       asterix == std::string::npos ||
-       qmark == std::string::npos ||
-       fslash == std::string::npos ) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
 std::string SearchEngine::GetName() {
   return engine_name_;
 }
@@ -699,6 +699,225 @@ unsigned long SearchEngine::GetImglistSize() {
 
 std::string SearchEngine::GetImglistFn( unsigned int index ) {
   return imglist_.at(index);
+}
+
+//
+// Search Engine State
+//
+bool SearchEngine::UpdateState() {
+  if ( state_id_ == SearchEngine::STATE_NOT_LOADED ) {
+    // check if search engine was initialized properly
+    if ( GetName() == "" ) {
+      return false;
+    } else {
+      state_id_ = SearchEngine::STATE_SETTING;
+      return true;
+    }
+  } else if ( state_id_ == SearchEngine::STATE_SETTING ) {
+    if ( IsEngineConfigEmpty() ) {
+      return false;
+    } else {
+      state_id_ = SearchEngine::STATE_INFO;
+      return true;
+    }
+  } else if ( state_id_ == SearchEngine::STATE_INFO ) {
+    state_id_ = SearchEngine::STATE_PREPROCESS;
+    return true;
+  } else if ( state_id_ == SearchEngine::STATE_PREPROCESS ) {
+    if ( EngineConfigFnExists() && ImglistFnExists() ) {
+      state_id_ = SearchEngine::STATE_DESCRIPTOR;
+      return true;
+    } else {
+      return false;
+    }
+  } else if ( state_id_ == SearchEngine::STATE_DESCRIPTOR ) {
+    if ( DescFnExists() ) {
+      state_id_ = SearchEngine::STATE_CLUSTER;
+      return true;
+    } else {
+      return false;
+    }
+  } else if ( state_id_ == SearchEngine::STATE_CLUSTER ) {
+    if ( ClstFnExists() ) {
+      state_id_ = SearchEngine::STATE_ASSIGN;
+      return true;
+    } else {
+      return false;
+    }
+  } else if ( state_id_ == SearchEngine::STATE_ASSIGN ) {
+    if ( AssignFnExists() ) {
+      state_id_ = SearchEngine::STATE_HAMM;
+      return true;
+    } else {
+      return false;
+    }
+  } else if ( state_id_ == SearchEngine::STATE_HAMM ) {
+    if ( HammFnExists() ) {
+      state_id_ = SearchEngine::STATE_INDEX;
+      return true;
+    } else {
+      return false;
+    }
+  } else if ( state_id_ == SearchEngine::STATE_INDEX ) {
+    if ( IndexFnExists() ) {
+      state_id_ = SearchEngine::STATE_QUERY;
+      return true;
+    } else {
+      return false;
+    }
+  }
+  return false;
+}
+
+void SearchEngine::LoadStateResources() {
+  state_id_list_.clear();
+  state_name_list_.clear();
+  state_html_fn_list_.clear();
+  state_info_list_.clear();
+  state_complexity_model_.clear();
+
+  state_id_list_.push_back( SearchEngine::STATE_NOT_LOADED );
+  state_name_list_.push_back( "NotLoaded" );
+  state_html_fn_list_.push_back( "404.html" );
+  state_info_list_.push_back( "" );
+  state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
+
+  state_id_list_.push_back( SearchEngine::STATE_SETTING );
+  state_name_list_.push_back( "Setting" );
+  state_html_fn_list_.push_back( "Setting.html" );
+  state_info_list_.push_back( "" );
+  state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
+
+  state_id_list_.push_back( SearchEngine::STATE_INFO );
+  state_name_list_.push_back( "Info" );
+  state_html_fn_list_.push_back( "Info.html" );
+  state_info_list_.push_back( "" );
+  state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
+
+  state_id_list_.push_back( SearchEngine::STATE_PREPROCESS );
+  state_name_list_.push_back( "Preprocess" );
+  state_html_fn_list_.push_back( "Preprocess.html" );
+  state_info_list_.push_back( "" );
+  state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
+
+  state_id_list_.push_back( SearchEngine::STATE_DESCRIPTOR );
+  state_name_list_.push_back( "Stage-1" );
+  state_html_fn_list_.push_back( "Descriptor.html" );
+  state_info_list_.push_back( "" );
+  state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
+
+  state_id_list_.push_back( SearchEngine::STATE_CLUSTER );
+  state_name_list_.push_back( "Stage-2" );
+  state_html_fn_list_.push_back( "Cluster.html" );
+  state_info_list_.push_back( "" );
+  state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
+
+  state_id_list_.push_back( SearchEngine::STATE_ASSIGN );
+  state_name_list_.push_back( "Stage-3" );
+  state_html_fn_list_.push_back( "Assign.html" );
+  state_info_list_.push_back( "" );
+  state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
+
+  state_id_list_.push_back( SearchEngine::STATE_HAMM );
+  state_name_list_.push_back( "Stage-4" );
+  state_html_fn_list_.push_back( "Hamm.html" );
+  state_info_list_.push_back( "" );
+  state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
+
+  state_id_list_.push_back( SearchEngine::STATE_INDEX );
+  state_name_list_.push_back( "Stage-5" );
+  state_html_fn_list_.push_back( "Index.html" );
+  state_info_list_.push_back( "" );
+  state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
+
+  state_id_list_.push_back( SearchEngine::STATE_QUERY );
+  state_name_list_.push_back( "Ready to Search" );
+  state_html_fn_list_.push_back( "Query.html" );
+  state_info_list_.push_back( "" );
+  state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
+
+  total_complexity_model_ = std::vector<double>(4, 0.0);
+
+  state_id_ = SearchEngine::STATE_NOT_LOADED;
+
+  // load all state html
+  state_html_list_.clear();
+  state_html_template_list_.clear();
+  state_html_list_.resize( state_id_list_.size() );
+  for (unsigned int i=0; i < state_id_list_.size(); i++) {
+    state_html_list_.at(i) = resources_->GetFileContents(state_html_fn_list_.at(i));
+  }
+  state_html_template_list_ = state_html_list_;
+}
+
+//
+// static methods to help with search engine management
+//
+bool SearchEngine::Exists( std::string search_engine_name ) {
+  // iterate through all directories in basedir_
+  boost::filesystem::directory_iterator dir_it( basedir_ ), end_it;
+  while ( dir_it != end_it ) {
+    boost::filesystem::path p = dir_it->path();
+    if ( boost::filesystem::is_directory( p ) ) {
+      if ( search_engine_name == p.filename().string() ) {
+        return true;
+      }
+    }
+    ++dir_it;
+  }
+  return false;
+}
+
+bool SearchEngine::ValidateName(std::string engine_name) {
+  // search engine name cannot contain:
+  //  - spaces
+  //  - special characters (*, ?, /)
+  std::size_t space = engine_name.find(' ');
+  std::size_t asterix = engine_name.find('*');
+  std::size_t qmark = engine_name.find('?');
+  std::size_t fslash = engine_name.find('/');
+  std::size_t bslash = engine_name.find('\\');
+  std::size_t dot = engine_name.find('.');
+
+  if ( space  == std::string::npos ||
+       asterix== std::string::npos ||
+       qmark  == std::string::npos ||
+       bslash == std::string::npos ||
+       dot    == std::string::npos ||
+       fslash == std::string::npos ) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+void SearchEngine::GetSearchEngineList( std::vector< std::string >& engine_list ) const {
+  engine_list.clear();
+
+  // iterate through all directories in engine_basedir
+  boost::filesystem::directory_iterator dir_it( basedir_ ), end_it;
+  while ( dir_it != end_it ) {
+    boost::filesystem::path p = dir_it->path();
+    if ( boost::filesystem::is_directory( p ) ) {
+      engine_list.push_back( p.filename().string() );
+    }
+    ++dir_it;
+  }
+}
+
+bool SearchEngine::Delete( std::string search_engine_name ) {
+  // major security risk: validate that search_engine_name is really a engine name
+  // and not something like name/../../../../etc/passwd
+  // docker running as root is capable of deleting everything. So be careful!
+  // @todo: revisit this and ensure safety of user data
+  if ( SearchEngine::ValidateName(search_engine_name) ) {
+    boost::filesystem::path engine_path = basedir_ / search_engine_name;
+    boost::filesystem::remove_all( engine_path, error_ );
+    if ( !error_ ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // for debug

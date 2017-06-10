@@ -12,8 +12,8 @@ target_link_libraries( SearchEngine
 
 add_library( ViseMessageQueue ViseMessageQueue.cc)
 target_link_libraries( ViseMessageQueue ${Boost_LIBRARIES} )
- 
-add_library( ViseServer ViseServer.cc Resources.cc Connection.cc)
+
+add_library( ViseServer ViseServer.cc Resources.cc Connection.cc ViseUtils.cc)
 target_link_libraries( ViseServer 
   ViseMessageQueue
   SearchEngine

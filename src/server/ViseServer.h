@@ -23,6 +23,7 @@
 #include "SearchEngine.h"
 #include "Connection.h"
 #include "Resources.h"
+#include "ViseMessageQueue.h"
 
 class ViseServer : private boost::noncopyable {
  public:

@@ -9,44 +9,35 @@
 #ifndef _VISE_RESOURCES_H
 #define _VISE_RESOURCES_H
 
-
 #include <iostream>
 #include <string>
 #include <vector>
 #include <fstream>
+#include <algorithm>
 
 #include <boost/filesystem.hpp>
+
+#include "ViseUtils.h"
 
 class Resources {
   public:
   void LoadAllResources(const boost::filesystem::path resource_dir);
+  std::string& GetFileContents(const std::string filename);
 
   // html content
-  std::string vise_main_html_;
-  std::string vise_help_html_;
-  std::string vise_404_html_;
-  std::string vise_css_;
-  std::string vise_js_;
-  boost::filesystem::path vise_favicon_fn_;
+  static const std::string VISE_MAIN_HTML_FN;
+  static const std::string VISE_HOME_HTML_FN;
+  static const std::string VISE_HELP_HTML_FN;
+  static const std::string VISE_404_HTML_FN;
+  static const std::string VISE_CSS_FN;
+  static const std::string VISE_JS_FN;
+  static const std::string VISE_FAVICON_FN;
 
   private:
+  std::vector< std::string > file_contents_cache_;
+  std::vector< std::string > filename_cache_;
+
   boost::filesystem::path resource_dir_;
-
-  // html content location
-  boost::filesystem::path vise_css_fn_;
-  boost::filesystem::path vise_js_fn_;
-  boost::filesystem::path vise_main_html_fn_;
-  boost::filesystem::path vise_help_html_fn_;
-  boost::filesystem::path vise_404_html_fn_;
-
-  // state complexity
-  std::vector< std::vector<double> > state_complexity_model_;
-  std::vector<double> total_complexity_model_;
-  std::string state_complexity_info_;
-  std::string complexity_model_assumption_;
-
-  int LoadFile(const boost::filesystem::path filename, std::string &file_contents);
-  void LoadStateComplexityModel();
 };
 
 #endif /* _VISE_RESOURCES_H */

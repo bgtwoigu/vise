@@ -84,7 +84,7 @@ function _vise_init() {
   //_vise_select_img_region( 'https://www.nasa.gov/sites/default/files/thumbnails/image/earthsun20170412.png' );
 
   // request the contents of vise_index.html
-  _vise_server.open("GET", VISE_SERVER_ADDRESS + "_vise_index.html");
+  _vise_server.open("GET", VISE_SERVER_ADDRESS + "_vise_home.html");
   _vise_server.send();
 
   // create the seed connection to receive messages
@@ -100,10 +100,6 @@ function _vise_init() {
 function _vise_server_response_listener() {
   var response_str = this.responseText;
   var content_type = this.getResponseHeader('Content-Type')
-
-  if ( !content_type ) {
-    return;
-  }
 
   if ( content_type.includes("text/html") ) {
     document.getElementById("content").innerHTML = response_str;
@@ -252,9 +248,13 @@ function _vise_handle_command(sender, command_str) {
   //console.log("sender = " + sender + " : command_str = " + command_str);
   // command_str = "_state update_now"
   // command_str = "_control_panel remove Info_proceed_button"
-  var first_spc = command_str.indexOf(' ', 0);
-  var cmd = command_str.substr(0, first_spc);
-  var param = command_str.substr(first_spc+1);
+  var cmd = command_str;
+  var param;
+  if ( command_str.includes(' ') ) {
+    var first_spc = command_str.indexOf(' ', 0);
+    cmd = command_str.substr(0, first_spc);
+    param = command_str.substr(first_spc+1);
+  }
 
   switch ( cmd ) {
     case "_state":
@@ -329,6 +329,12 @@ function _vise_handle_command(sender, command_str) {
           window.location.href = VISE_SERVER_ADDRESS;
           break;
       }
+      break;
+
+    case "_go_home":
+      // request the contents of vise_index.html
+      _vise_server.open("GET", VISE_SERVER_ADDRESS + "_vise_home.html");
+      _vise_server.send();
       break;
 
     default:
@@ -441,6 +447,15 @@ function _vise_fetch_current_state_content() {
 function _vise_create_search_engine() {
   var search_engine_name = document.getElementById('vise_search_engine_name').value;
   _vise_server_send_post_request("create_search_engine " + search_engine_name);
+}
+
+function _vise_delete_search_engine() {
+  var search_engine_name = document.getElementById('vise_search_engine_name').value;
+  var confirm_message = "Are you sure you want to delete \"" + search_engine_name + "\"?\nWARNING: deleted search engine cannot be recovered!";
+  var confirm_delete = confirm(confirm_message);
+  if ( confirm_delete ) {
+    _vise_server_send_post_request("delete_search_engine " + search_engine_name);
+  }
 }
 
 function _vise_load_search_engine(name) {

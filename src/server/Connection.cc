@@ -126,7 +126,6 @@ bool Connection::GetHttpHeaderValue(const std::string& header, const std::string
   }
 }
 
-
 std::string Connection::GetFileContentType( const boost::filesystem::path& fn) {
   std::string ext = fn.extension().string();
   std::string http_content_type = "unknown";
@@ -145,6 +144,14 @@ std::string Connection::GetFileContentType( const boost::filesystem::path& fn) {
   }
 
   return http_content_type;
+}
+
+bool Connection::StringStartsWith( const std::string &s, const std::string &prefix ) {
+  if ( s.substr(0, prefix.length()) == prefix ) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 //
@@ -243,6 +250,15 @@ void Connection::SendImageResponse(Magick::Image &im, std::string content_type) 
   response_code_ = 200;
 }
 
+
+void Connection::SendHttpPostResponse(std::string http_post_data, std::string result) {
+  std::ostringstream json;
+  json << "{\"id\":\"http_post_response\",\"http_post_data\":\"" << http_post_data 
+       << "\",\"result\":\"" << result << "\"}";
+
+  SendJsonResponse( json.str() );
+}
+
 //
 // Process API Request
 //
@@ -276,22 +292,49 @@ void Connection::ProcessRequestData() {
 void Connection::HandleGetRequest() {
   if ( request_http_uri_ == "/" ) {
     // show main page http://localhost:8080
-    SendHtmlResponse( resources_->vise_main_html_ );
+    SendHtmlResponse( resources_->GetFileContents(Resources::VISE_MAIN_HTML_FN) );
     return;
   }
 
   if ( request_http_uri_ == "/favicon.ico" ) {
-    SendImageResponse( resources_->vise_favicon_fn_ );
+    SendImageResponse( resources_->GetFileContents(Resources::VISE_FAVICON_FN) );
     return;
   }
 
   if ( request_http_uri_ == "/vise.css" ) {
-    SendHttpResponse( "text/css", resources_->vise_css_ );
+    SendHttpResponse( "text/css", resources_->GetFileContents(Resources::VISE_CSS_FN) );
+    return;
+  }
+
+  if ( request_http_uri_ == "/_vise_home.html" ) {
+    std::string vise_home_template = resources_->GetFileContents(Resources::Resources::VISE_HOME_HTML_FN);
+    std::vector< std::string > engine_list;
+    search_engine_->GetSearchEngineList( engine_list );
+
+    std::ostringstream engine_list_html;
+    for( unsigned int i=0; i<engine_list.size(); i++ ) {
+      engine_list_html << "<a onclick=\"_vise_load_search_engine(\"" << engine_list.at(i) << "\")\">"
+                       << "<figure></figure><p>" << engine_list.at(i) << "</p></a>";
+    }
+    std::string vise_home_html = vise_home_template;
+    ViseUtils::StringReplace(vise_home_html, "__SEARCH_ENGINE_LIST__", engine_list_html.str());
+    SendHtmlResponse(vise_home_html);
     return;
   }
 
   if ( request_http_uri_ == "/vise.js" ) {
-    SendHttpResponse( "application/javascript", resources_->vise_js_ );
+    SendHttpResponse( "application/javascript", resources_->GetFileContents(Resources::VISE_JS_FN) );
+    return;
+  }
+
+  const std::string message_prefix = "/_message";
+  if ( StringStartsWith(request_http_uri_, message_prefix) ) {
+    // since HTTP server always requires a request in order to send responses,
+    // we always create this _message channel which keeps waiting for messages
+    // to be pushed to vise_message_queue_, sends this message to the client
+    // which in turn again creates another request for any future messages
+    std::string msg = ViseMessageQueue::Instance()->BlockingPop(); // blocks until a message is available
+    SendHttpResponse( "text/plain", msg);
     return;
   }
 
@@ -300,5 +343,101 @@ void Connection::HandleGetRequest() {
 }
 
 void Connection::HandlePostRequest() {
+  std::string http_post_data = request_content_.str();
 
+  if ( request_http_uri_ == "/" ) {
+    // the http_post_data can be one of these:
+    //  * create_search_engine  _NAME_OF_SEARCH_ENGINE_
+    //  * load_search_engine    _NAME_OF_SEARCH_ENGINE_
+    //  * stop_training_process _NAME_OF_SEARCH_ENGINE_
+    std::vector< std::string > tokens;
+    ViseUtils::StringSplit( http_post_data, ' ', tokens);
+
+    if ( tokens.size() == 2 ) {
+      std::string search_engine_name = tokens.at(1);
+      if ( tokens.at(0) == "create_search_engine" ) {
+        if ( search_engine_->Exists( search_engine_name ) ) {
+          SendMessage("Search engine by that name already exists!");
+        } else {
+          if ( SearchEngine::ValidateName( search_engine_name ) ) {
+            search_engine_->Init( search_engine_name );
+
+            if ( search_engine_->UpdateState() ) {
+              // send control message : state updated
+              SendCommand("_state update_now");
+              SendHttpPostResponse( http_post_data, "OK" );
+              SendCommand("_state update_now");
+            } else {
+              SendMessage("Cannot initialize search engine [" + search_engine_name + "]");
+              SendHttpPostResponse( http_post_data, "ERR" );
+            }
+          } else {
+            SendMessage("Search engine name cannot contains spaces, or special characters ( .,*,?,/,\\ )");
+            SendHttpPostResponse( http_post_data, "ERR" );
+          }
+        }
+        return;
+        // send control message to set loaded engine name
+      } else if ( tokens.at(0) == "load_search_engine" ) {
+          if ( search_engine_->GetName() == search_engine_name ) {
+            SendHttpPostResponse( http_post_data, "Search engine already loaded!" );
+            SendCommand("_state update_now");
+          } else {
+            if ( search_engine_->Exists( search_engine_name ) ) {
+              SendMessage("Loading search engine [" + search_engine_name + "] ...");
+              search_engine_->Init( search_engine_name );
+              SendHttpPostResponse( http_post_data, "Loaded search engine" );
+            } else {
+              SendHttpPostResponse( http_post_data, "Search engine does not exist" );
+              SendMessage("Search engine does not exists!");
+            }
+          }
+          return;
+      } else if ( tokens.at(0) == "delete_search_engine" ) {
+        if ( search_engine_->Exists( search_engine_name ) ) {
+          if ( search_engine_->Delete( search_engine_name ) ) {
+            SendMessage("Deleted search engine [" + search_engine_name + "]");
+            SendCommand("_go_home");
+          } else {
+            SendMessage("Failed to delete search engine [" + search_engine_name + "]");
+          }
+          return;
+        } else {
+          SendHttpPostResponse( http_post_data, "ERR" );
+          SendMessage("Search engine [" + search_engine_name + "] does not exists!");
+        }
+      } else {
+
+      }
+    } else {
+      // unexpected POST data
+      SendHttpPostResponse(http_post_data, "ERR");
+      return;
+    }
+  } else {
+    // state POST data
+  }
+
+  // default handler: unknown POST data
+  ResponseHttp404();
+  return;
 }
+
+//
+// ViseMessageQueue
+//
+
+void Connection::SendMessage(std::string message) {
+  SendPacket( "message", message);
+}
+
+void Connection::SendCommand(std::string command) {
+  SendPacket("command", command );
+}
+
+void Connection::SendPacket(std::string type, std::string message) {
+  std::ostringstream s;
+  s << "Connection " << type << " " << message;
+  ViseMessageQueue::Instance()->Push( s.str() );
+}
+
