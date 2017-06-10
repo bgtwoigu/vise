@@ -12,13 +12,9 @@ target_link_libraries( SearchEngine
 
 add_library( ViseMessageQueue ViseMessageQueue.cc)
 target_link_libraries( ViseMessageQueue ${Boost_LIBRARIES} )
-
-add_library( Connection Connection.cc )
-target_link_libraries( Connection ${Boost_LIBRARIES} )
-
-add_library( ViseServer ViseServer.cc)
+ 
+add_library( ViseServer ViseServer.cc Resources.cc Connection.cc)
 target_link_libraries( ViseServer 
-  Connection
   ViseMessageQueue
   SearchEngine
   clst_centres

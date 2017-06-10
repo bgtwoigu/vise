@@ -10,16 +10,16 @@ ViseServer::ViseServer( const std::string address, const std::string port, std::
   // set resource names
   vise_datadir_         = boost::filesystem::path(vise_data_dir);
   vise_src_code_dir_    = boost::filesystem::path(vise_src_code_dir);
-  vise_templatedir_     = vise_src_code_dir_ / "src/server/html_templates/";
+  vise_resourcedir_     = vise_src_code_dir_ / "src/server/resources/";
 
   if ( ! boost::filesystem::exists( vise_datadir_ ) ) {
     std::cerr << "\nViseServer::ViseServer() : vise_datadir_ does not exist! : "
               << vise_datadir_.string() << std::flush;
     return;
   }
-  if ( ! boost::filesystem::exists( vise_templatedir_ ) ) {
-    std::cerr << "\nViseServer::ViseServer() : vise_templatedir_ does not exist! : "
-              << vise_templatedir_.string() << std::flush;
+  if ( ! boost::filesystem::exists( vise_resourcedir_ ) ) {
+    std::cerr << "\nViseServer::ViseServer() : vise_resourcedir_ does not exist! : "
+              << vise_resourcedir_.string() << std::flush;
     return;
   }
 
@@ -52,6 +52,10 @@ ViseServer::ViseServer( const std::string address, const std::string port, std::
   // search engine
   search_engine_ = new SearchEngine();
 
+  // server resources
+  resources_ = new Resources();
+  resources_->LoadAllResources(vise_resourcedir_);
+
   server_connection_count_ = 0;
   AcceptNewConnection();
   std::cout << "\nserver waiting for connections at " << address_ << ":" << port_ << std::flush;
@@ -79,7 +83,7 @@ void ViseServer::Start() {
 }
 
 void ViseServer::AcceptNewConnection() {
-  new_connection_.reset( new Connection(io_service_, search_engine_, vise_datadir_, vise_src_code_dir_) );
+  new_connection_.reset( new Connection(io_service_, search_engine_, resources_, vise_datadir_, vise_src_code_dir_) );
   acceptor_.async_accept( new_connection_->Socket(),
                           boost::bind(&ViseServer::HandleConnection, this, boost::asio::placeholders::error) );
 }

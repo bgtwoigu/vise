@@ -22,6 +22,7 @@
 
 #include "SearchEngine.h"
 #include "Connection.h"
+#include "Resources.h"
 
 class ViseServer : private boost::noncopyable {
  public:
@@ -49,11 +50,14 @@ class ViseServer : private boost::noncopyable {
   // resource dir
   boost::filesystem::path vise_datadir_;
   boost::filesystem::path vise_src_code_dir_;
-  boost::filesystem::path vise_templatedir_;
+  boost::filesystem::path vise_resourcedir_;
   boost::filesystem::path vise_logdir_;
   boost::filesystem::path vise_enginedir_;
 
   // search engine
   SearchEngine *search_engine_;
+
+  // server resources
+  Resources* resources_;
 };
 #endif /* _VISE_SERVER_H */

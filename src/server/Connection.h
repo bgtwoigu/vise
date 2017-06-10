@@ -22,12 +22,15 @@
 #include <boost/filesystem.hpp>
 #include <boost/array.hpp>
 
+#include <Magick++.h>            // to transform images
+
 #include "SearchEngine.h"
+#include "Resources.h"
 
 class Connection : public boost::enable_shared_from_this<Connection>, private boost::noncopyable
 {
  public:
-  Connection(boost::asio::io_service& io_service, SearchEngine* search_engine, boost::filesystem::path vise_datadir, boost::filesystem::path vise_src_code_dir);
+  Connection(boost::asio::io_service& io_service, SearchEngine* search_engine, Resources* resources_, boost::filesystem::path vise_datadir, boost::filesystem::path vise_src_code_dir);
   ~Connection();
 
   boost::asio::ip::tcp::socket& Socket();
@@ -38,6 +41,7 @@ class Connection : public boost::enable_shared_from_this<Connection>, private bo
   static const std::string http_100;
   static const std::string http_200;
   static const std::string http_400;
+  static const std::string http_404;
  private:
   // boost asio async handler functions
   void OnRequestRead(const boost::system::error_code& e, std::size_t bytes_read);
@@ -49,11 +53,12 @@ class Connection : public boost::enable_shared_from_this<Connection>, private bo
   // tcp socket
   boost::asio::ip::tcp::socket socket_;
 
-  // HTTP Request
+  // Request handlers
   void ProcessRequestData();
-  void CreateResponse();
-  bool GetHttpHeaderValue(const std::string& header, const std::string& name, std::string& value);
+  void HandleGetRequest();
+  void HandlePostRequest();
 
+  // HTTP Request
   boost::array<char, 1024> buffer_;
   boost::array<char, 8192> large_buffer_;
   bool request_header_seen_;
@@ -70,16 +75,33 @@ class Connection : public boost::enable_shared_from_this<Connection>, private bo
   boost::filesystem::path session_name_;
   boost::filesystem::path vise_datadir_;
   boost::filesystem::path vise_src_code_dir_;
-  int connection_error_;
 
-  // HTTP Response
-  void ResponseForBadRequest(std::string message);
-  void ResponseHttp200();
-
+  // http response
   boost::asio::streambuf response_buffer_;
+  unsigned int response_code_;
 
   // Search Engine
   SearchEngine* search_engine_;
+
+  // Resources
+  Resources* resources_;
+
+  // HTTP Standard Responses
+  void ResponseHttp404();
+  void ResponseHttp400();
+  void ResponseHttp200();
+
+  // Helper functions
+  bool GetHttpHeaderValue(const std::string& header, const std::string& name, std::string& value);
+  std::string GetFileContentType( const boost::filesystem::path& fn);
+
+  // HTTP Responses
+  void WriteResponse();
+  void SendHttpResponse(const std::string content_type, const std::string &content);
+  void SendJsonResponse(const std::string &json);
+  void SendHtmlResponse(const std::string &html);
+  void SendImageResponse(const boost::filesystem::path &im_fn);
+  void SendImageResponse(Magick::Image &im, std::string content_type);
 };
 
 #endif
