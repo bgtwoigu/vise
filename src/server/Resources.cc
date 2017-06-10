@@ -14,7 +14,7 @@ void Resources::LoadAllResources(const boost::filesystem::path resource_dir) {
   filename_cache_.push_back("");
 }
 
-std::string& Resources::GetFileContents(const std::string filename) {
+const std::string& Resources::GetFileContents(const std::string filename) {
   // check if this file exists in cache
   for ( unsigned int i = 0; i < filename_cache_.size(); i++ ) {
     if ( filename_cache_.at(i) == filename ) {

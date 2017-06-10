@@ -280,8 +280,10 @@ void Connection::ProcessRequestData() {
             << request_header_.length() << "," << request_content_.str().length() << ") bytes]" << std::flush;
 
   if ( request_http_method_ == "GET " ) {
+    // query the state of search engine
     HandleGetRequest();
   } else if ( request_http_method_ == "POST" ) {
+    // change the state of search engine
     HandlePostRequest();
   } else {
     ResponseHttp400();
@@ -289,6 +291,7 @@ void Connection::ProcessRequestData() {
     
 }
 
+// these HTTP GET requests are used to query the state of search engine
 void Connection::HandleGetRequest() {
   if ( request_http_uri_ == "/" ) {
     // show main page http://localhost:8080
@@ -306,15 +309,26 @@ void Connection::HandleGetRequest() {
     return;
   }
 
+  if ( request_http_uri_ == "/_state" ) {
+    // json reply containing current state info.
+    std::string state_json = search_engine_->GetStateJsonData();
+    SendJsonResponse(state_json);
+    return;
+  }
+
   if ( request_http_uri_ == "/_vise_home.html" ) {
     std::string vise_home_template = resources_->GetFileContents(Resources::Resources::VISE_HOME_HTML_FN);
     std::vector< std::string > engine_list;
     search_engine_->GetSearchEngineList( engine_list );
 
     std::ostringstream engine_list_html;
-    for( unsigned int i=0; i<engine_list.size(); i++ ) {
-      engine_list_html << "<a onclick=\"_vise_load_search_engine(\"" << engine_list.at(i) << "\")\">"
-                       << "<figure></figure><p>" << engine_list.at(i) << "</p></a>";
+    if ( engine_list.size() ) {
+      for( unsigned int i=0; i<engine_list.size(); i++ ) {
+        engine_list_html << "<a onclick=\"_vise_load_search_engine(\"" << engine_list.at(i) << "\")\">"
+                         << "<figure></figure><p>" << engine_list.at(i) << "</p></a>";
+      }
+    } else  {
+      engine_list_html << "<p><i>All user created search engines will be shown here</i></p>";
     }
     std::string vise_home_html = vise_home_template;
     ViseUtils::StringReplace(vise_home_html, "__SEARCH_ENGINE_LIST__", engine_list_html.str());
@@ -338,10 +352,47 @@ void Connection::HandleGetRequest() {
     return;
   }
 
+  // state html page
+  // example: Get /Cluster
+  std::vector< std::string > tokens;
+  ViseUtils::StringSplit( request_http_uri_, '/', tokens);
+  if ( tokens.at(0) == "" && tokens.size() == 2 ) {
+    std::string resource_name = tokens.at(1);
+    HandleStateGetRequest( resource_name );
+    return;
+  }
   ResponseHttp404();
-  return;
 }
 
+void Connection::HandleStateGetRequest( std::string resource_name) {
+  std::string state_name = resource_name;
+  int state_id = search_engine_->GetStateId( resource_name );
+  if ( state_id != -1 ) {
+    std::string state_html_fn = search_engine_->GetStateHtmlFn(state_id);
+    std::string state_html( resources_->GetFileContents(state_html_fn) );
+    if ( state_id == SearchEngine::STATE_QUERY && search_engine_->GetCurrentStateId() == SearchEngine::STATE_QUERY ) {
+      return;
+    } else {
+      if ( state_id == SearchEngine::STATE_SETTING ) {
+        ViseUtils::StringReplace( state_html, "__SEARCH_ENGINE_NAME__", search_engine_->GetName() );
+        ViseUtils::StringReplace( state_html,
+                       "__DEFAULT_IMAGE_PATH__",
+                       (std::string(getenv("HOME")) + "/vgg/mydata/images/") ); // @todo: replace with something more sensible (like dired)
+        SendCommand("_state show");
+        //SendCommand("_dired fetch " + user_home_dir_.string() );
+      } else if ( state_id == SearchEngine::STATE_INFO ) {
+        state_html = search_engine_->GetStateComplexityInfo();
+        SendCommand("_control_panel add <div class=\"action_button\" onclick=\"_vise_server_send_state_post_request('Info', 'proceed')\">Proceed</div>");
+      }
+
+      SendHtmlResponse( state_html );
+      return;
+    }
+  }
+  ResponseHttp404();
+}
+
+// these HTTP POST requests are used to change the state of search engine
 void Connection::HandlePostRequest() {
   std::string http_post_data = request_content_.str();
 
@@ -366,7 +417,6 @@ void Connection::HandlePostRequest() {
               // send control message : state updated
               SendCommand("_state update_now");
               SendHttpPostResponse( http_post_data, "OK" );
-              SendCommand("_state update_now");
             } else {
               SendMessage("Cannot initialize search engine [" + search_engine_name + "]");
               SendHttpPostResponse( http_post_data, "ERR" );

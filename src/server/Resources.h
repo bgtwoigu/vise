@@ -22,7 +22,8 @@
 class Resources {
   public:
   void LoadAllResources(const boost::filesystem::path resource_dir);
-  std::string& GetFileContents(const std::string filename);
+  const std::string& GetFileContents(const std::string filename);
+  const std::string& GetConstant(std::string name, std::string default_value);
 
   // html content
   static const std::string VISE_MAIN_HTML_FN;

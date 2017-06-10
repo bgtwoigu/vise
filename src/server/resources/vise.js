@@ -63,6 +63,9 @@ var canvas_panel;
 var original_img_region = new ImageRegion();
 var canvas_img_region = new ImageRegion();
 
+// experimental features
+var is_exp_features_enabled = false;
+
 function _vise_init() {
   // initially hide footer and log
   document.getElementById("footer").style.display = "none";
@@ -432,6 +435,9 @@ function _vise_update_state_info( json ) {
     if ( _vise_current_state_id > 2 ) {
       _vise_fetch_random_image();
     }
+
+    // update browser title
+    document.title = _vise_current_search_engine_name + " : VISE";
   }
 }
 
@@ -459,7 +465,23 @@ function _vise_delete_search_engine() {
 }
 
 function _vise_load_search_engine(name) {
-  _vise_server_send_post_request("load_search_engine " + name);
+    _vise_server_send_post_request("load_search_engine " + search_engine_name);
+}
+
+function _vise_toggle_experimental_features() {
+  if ( is_exp_features_enabled ) {
+    var confirm_message = "Are you sure you want to enable experimental features of VISE?\nWARNING: these features may be unstable and may result in loss of data!";
+    var confirm_delete = confirm(confirm_message);
+    if ( confirm_delete ) {
+      _vise_server_send_post_request("experimental_features 1");
+      document.body.style.background = "#FFD5D5";
+      is_exp_features_enabled = true;
+    }
+  } else {
+      _vise_server_send_post_request("experimental_features 0");
+      document.body.style.background = "#FFFFFF";
+    is_exp_features_enabled = false;
+  }
 }
 
 function _vise_server_send_post_request(post_data) {

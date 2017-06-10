@@ -68,6 +68,7 @@ void SearchEngine::Init(std::string name) {
 
   // load state name, description, complexity model, html files, etc
   LoadStateResources();
+  LoadStateComplexityModel();
 }
 
 //
@@ -769,6 +770,28 @@ bool SearchEngine::UpdateState() {
   return false;
 }
 
+std::string& SearchEngine::GetStateJsonData() {
+  std::ostringstream json;
+  json << "{ \"id\":\"search_engine_state\",";
+  json << "\"state_id_list\":[0";
+  for ( unsigned int i=1 ; i < state_id_list_.size(); i++ ) {
+    json << "," << i;
+  }
+  json << "],\"state_name_list\":[\"" << state_name_list_.at(0) << "\"";
+  for ( unsigned int i=1 ; i < state_id_list_.size(); i++ ) {
+    json << ",\"" << state_name_list_.at(i) << "\"";
+  }
+  json << "],\"state_info_list\":[\"" << state_info_list_.at(0) << "\"";
+  for ( unsigned int i=1 ; i < state_id_list_.size(); i++ ) {
+    json << ",\"" << state_info_list_.at(i) << "\"";
+  }
+  json << "],\"current_state_id\":" << state_id_ << ",";
+  json << "\"search_engine_name\":\"" << engine_name_ << "\" }";
+
+  state_json_ = json.str();
+  return state_json_;
+}
+
 void SearchEngine::LoadStateResources() {
   state_id_list_.clear();
   state_name_list_.clear();
@@ -778,7 +801,7 @@ void SearchEngine::LoadStateResources() {
 
   state_id_list_.push_back( SearchEngine::STATE_NOT_LOADED );
   state_name_list_.push_back( "NotLoaded" );
-  state_html_fn_list_.push_back( "404.html" );
+  state_html_fn_list_.push_back( "vise_404.html" );
   state_info_list_.push_back( "" );
   state_complexity_model_.push_back( std::vector<double>(4, 0.0) );
 
@@ -839,15 +862,143 @@ void SearchEngine::LoadStateResources() {
   total_complexity_model_ = std::vector<double>(4, 0.0);
 
   state_id_ = SearchEngine::STATE_NOT_LOADED;
+}
 
-  // load all state html
-  state_html_list_.clear();
-  state_html_template_list_.clear();
-  state_html_list_.resize( state_id_list_.size() );
-  for (unsigned int i=0; i < state_id_list_.size(); i++) {
-    state_html_list_.at(i) = resources_->GetFileContents(state_html_fn_list_.at(i));
+void SearchEngine::LoadStateComplexityModel() {
+  /*
+    NOTE: state_model_complexity_ is obtained as follows:
+    regression coefficient source: docs/training_time/plot_training_time_model.R
+
+    > source('plot.R')
+    [1] "Model coefficients for time"
+    state_name   (Intercept)    img_count
+    1     Assign -0.0635593220 0.0008276836
+    2    Cluster -1.5004237288 0.0364477401
+    3 Descriptor  0.2545197740 0.0031129944
+    4       Hamm -0.0004237288 0.0001144068
+    5      Index -0.4600282486 0.0175409605
+    6 Preprocess -0.0608757062 0.0011031073
+    7      TOTAL -1.8307909605 0.0591468927
+    [1] "Model coefficients for space"
+    state_name   (Intercept)   img_count
+    1     Assign  4.440892e-16 0.003814697
+    2    Cluster  3.147125e-05 0.048828125
+    3 Descriptor  4.768372e-06 0.122070312
+    4       Hamm  3.126557e-02 0.024414063
+    5      Index -1.438618e+00 0.072752569
+    6 Preprocess  3.374722e+00 0.427843547
+    7      TOTAL  1.967406e+00 0.699723314
+  */
+
+  complexity_model_assumption_ = "cpu name: Intel(R) Core(TM) i7-6700HQ CPU @ 2.60GHz; cpu MHz : 3099.992; RAM: 16GB; cores : 8";
+
+  // time_min = coef_0 + coef_1 * img_count
+  state_complexity_model_.at( SearchEngine::STATE_PREPROCESS ).at(0) = -0.0608757062; // coef_0 (time)
+  state_complexity_model_.at( SearchEngine::STATE_PREPROCESS ).at(1) =  0.0011031073; // coef_1 (time)
+  state_complexity_model_.at( SearchEngine::STATE_PREPROCESS ).at(2) =  3.374722;     // coef_0 (space)
+  state_complexity_model_.at( SearchEngine::STATE_PREPROCESS ).at(3) =  0.427843547;  // coef_1 (space)
+
+  // time_min = coef_0 + coef_1 * img_count
+  state_complexity_model_.at( SearchEngine::STATE_DESCRIPTOR ).at(0) = 0.2545197740; // coef_0 (time)
+  state_complexity_model_.at( SearchEngine::STATE_DESCRIPTOR ).at(1) = 0.0031129944; // coef_1 (time)
+  state_complexity_model_.at( SearchEngine::STATE_DESCRIPTOR ).at(2) = 4.768372e-06; // coef_0 (space)
+  state_complexity_model_.at( SearchEngine::STATE_DESCRIPTOR ).at(3) = 0.122070312;  // coef_1 (space)
+
+  // time_min = coef_0 + coef_1 * img_count
+  state_complexity_model_.at( SearchEngine::STATE_CLUSTER ).at(0) = -1.5004237288; // coef_0 (time)
+  state_complexity_model_.at( SearchEngine::STATE_CLUSTER ).at(1) =  0.0364477401; // coef_1 (time)
+  state_complexity_model_.at( SearchEngine::STATE_CLUSTER ).at(2) =  3.147125e-05; // coef_0 (space)
+  state_complexity_model_.at( SearchEngine::STATE_CLUSTER ).at(3) =  0.048828125;  // coef_1 (space)
+
+  // time_min = coef_0 + coef_1 * img_count
+  state_complexity_model_.at( SearchEngine::STATE_INDEX ).at(0) = -0.4600282486; // coef_0 (time)
+  state_complexity_model_.at( SearchEngine::STATE_INDEX ).at(1) =  0.0175409605; // coef_1 (time)
+  state_complexity_model_.at( SearchEngine::STATE_INDEX ).at(2) = -1.438618;     // coef_0 (space)
+  state_complexity_model_.at( SearchEngine::STATE_INDEX ).at(3) =  0.072752569;  // coef_1 (space)
+
+  // time_min = coef_0 + coef_1 * img_count
+  total_complexity_model_.at(0) = -1.8307909605; // coef_0 (time)
+  total_complexity_model_.at(1) =  0.0591468927; // coef_1 (time)
+  total_complexity_model_.at(2) =  1.967406;     // coef_0 (space)
+  total_complexity_model_.at(3) =  0.699723314;  // coef_1 (space)
+}
+
+
+std::string SearchEngine::GetStateComplexityInfo() {
+  unsigned long n = GetImglistSize();
+
+  std::ostringstream s;
+  std::vector< double > m = total_complexity_model_;
+  double time  = m[0] + m[1] * n; // in minutes
+  double space = m[2] + m[3] * n; // in MB
+
+  s << "<h3>Overview of Search Engine Training Requirements</h3>"
+    << "<table id=\"engine_overview\">"
+    << "<tr><td>Number of images</td><td>" << n << "</td></tr>"
+    << "<tr><td>Estimated total training time*</td><td>" << ceil(time) << " min.</td></tr>"
+    << "<tr><td>Estimated memory needed*</td><td>" << "4 GB</td></tr>"
+    << "<tr><td>Estimated total disk space needed*</td><td>" << ceil(space) << " MB</td></tr>"
+    << "<tr><td>&nbsp;</td><td>&nbsp;</td></tr>"
+    << "<tr><td colspan=\"2\">* estimates are based on the following specifications : </td></tr>"
+    << "<tr><td colspan=\"2\">  " << complexity_model_assumption_ << "</td></tr>"
+    <<"</td></tr>"
+    << "</table>";
+  return s.str();
+}
+
+void SearchEngine::UpdateStateInfoList() {
+  unsigned long n = GetImglistSize();
+  std::vector< int > state_id_list;
+  state_id_list.push_back( SearchEngine::STATE_PREPROCESS );
+  state_id_list.push_back( SearchEngine::STATE_DESCRIPTOR );
+  state_id_list.push_back( SearchEngine::STATE_CLUSTER );
+  state_id_list.push_back( SearchEngine::STATE_INDEX );
+
+  for (unsigned int i=0; i<state_id_list.size(); i++) {
+    int state_id = state_id_list.at(i);
+    std::vector< double > m = state_complexity_model_.at(state_id);
+    double time  = m[0] + m[1] * n; // in minutes
+    double space = m[2] + m[3] * n; // in MB
+
+    std::ostringstream sinfo;
+    sinfo << "(" << ceil(time) << " min, " << ceil(space) << " MB)";
+    state_info_list_.at( state_id ) = sinfo.str();
+    //std::cout << "\nm=" << m[0] << "," << m[1] << "," << m[2] << "," << m[3] << std::flush;
+    //std::cout << "\nstate = " << state_id << " : " << sinfo.str() << std::flush;
   }
-  state_html_template_list_ = state_html_list_;
+}
+
+std::string SearchEngine::GetCurrentStateName() const {
+  return GetStateName( state_id_ );
+}
+
+std::string SearchEngine::GetCurrentStateInfo() const {
+  return GetStateInfo( state_id_ );
+}
+
+std::string SearchEngine::GetStateHtmlFn(int state_id) const {
+  return state_html_fn_list_.at(state_id);
+}
+
+int SearchEngine::GetStateId( std::string state_name ) const {
+  for ( unsigned int i=0; i < state_id_list_.size(); i++) {
+    if ( state_name_list_.at(i) == state_name ) {
+      return state_id_list_.at(i);
+    }
+  }
+  return -1; // not found
+}
+
+std::string SearchEngine::GetStateName(int state_id) const {
+  return state_name_list_.at( state_id );
+}
+
+std::string SearchEngine::GetStateInfo(int state_id) const {
+  return state_info_list_.at( state_id );
+}
+
+int SearchEngine::GetCurrentStateId() const {
+  return state_id_;
 }
 
 //

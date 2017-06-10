@@ -58,13 +58,18 @@ public:
   static const int STATE_INDEX;
   static const int STATE_QUERY;
 
-  std::string GetCurrentStateName();
-  std::string GetCurrentStateInfo();
-  std::string GetStateName( int state_id );
-  std::string GetStateInfo( int state_id );
-
-  int GetCurrentStateId();
+  // query search engine state
+  std::string GetCurrentStateName() const;
+  std::string GetCurrentStateInfo() const;
+  std::string GetStateName( int state_id ) const;
+  std::string GetStateInfo( int state_id ) const;
+  std::string GetStateHtmlFn( int state_id ) const;
+  int GetStateId( std::string ) const;
+  int GetCurrentStateId() const;
   bool UpdateState();
+  std::string& GetStateJsonData();
+  std::string GetStateComplexityInfo();
+  void UpdateStateInfoList();
 
   void Preprocess();
   void Descriptor();
@@ -121,8 +126,8 @@ public:
 
  private:
   std::string engine_name_;
-
   Resources* resources_;
+  boost::system::error_code error_;
 
   // state variables
   int state_id_;
@@ -131,15 +136,13 @@ public:
   std::vector< std::string > state_info_list_;
   std::vector< std::vector<double> > state_complexity_model_;
   std::vector< std::string > state_html_fn_list_;
-  std::vector< std::string > state_html_list_;
-  std::vector< std::string > state_html_template_list_;
   std::vector<double> total_complexity_model_;
   std::string state_complexity_info_;
   std::string complexity_model_assumption_;
-
-  boost::system::error_code error_;
+  std::string state_json_;
 
   void LoadStateResources();
+  void LoadStateComplexityModel();
 
   boost::filesystem::path basedir_;
   boost::filesystem::path enginedir_;

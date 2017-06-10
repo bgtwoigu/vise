@@ -32,7 +32,11 @@
 class Connection : public boost::enable_shared_from_this<Connection>, private boost::noncopyable
 {
  public:
-  Connection(boost::asio::io_service& io_service, SearchEngine* search_engine, Resources* resources_, boost::filesystem::path vise_datadir, boost::filesystem::path vise_src_code_dir);
+  Connection(boost::asio::io_service& io_service, 
+            SearchEngine* search_engine, 
+            Resources* resources_, 
+            boost::filesystem::path vise_datadir, 
+            boost::filesystem::path vise_src_code_dir);
   ~Connection();
 
   boost::asio::ip::tcp::socket& Socket();
@@ -59,6 +63,7 @@ class Connection : public boost::enable_shared_from_this<Connection>, private bo
   void ProcessRequestData();
   void HandleGetRequest();
   void HandlePostRequest();
+  void HandleStateGetRequest( std::string resource_name);
 
   // HTTP Request
   boost::array<char, 1024> buffer_;
