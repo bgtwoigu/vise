@@ -125,6 +125,9 @@ ViseServer::ViseServer( boost::filesystem::path vise_datadir, boost::filesystem:
   }
   state_html_template_list_ = state_html_list_;
 
+  // favicon
+  vise_favicon_fn_ = vise_templatedir_ / "favicon.ico";
+
   vise_index_html_reload_ = true;
 
   // open a log file to save training statistics
@@ -337,12 +340,17 @@ bool ViseServer::Stop() {
 void ViseServer::HandleConnection(boost::shared_ptr<tcp::socket> p_socket) {
   size_t bytes_read = p_socket->read_some(boost::asio::buffer( buffer_ ), error_);
   if ( error_ ) {
-    std::cerr << "ViseServer::HandleConnection() : error reading http request" << std::endl;
-    std::cerr << error_.message() << std::endl;
+    if ( error_ != boost::asio::error::eof ) {
+      std::cerr << "ViseServer::HandleConnection() : error reading http request" << std::endl;
+      std::cerr << error_.message() << std::endl;
+    } else {
+      std::cerr << "[http stream eof]" << std::flush;
+    }
     boost::system::error_code ignored_err;
     p_socket->shutdown( boost::asio::ip::tcp::socket::shutdown_both, ignored_err );
     return;
   }
+
   std::string http_request(buffer_.data(), buffer_.data() + bytes_read);
   std::string http_method  = http_request.substr(0, 4);
   std::string http_method_uri;
@@ -394,8 +402,7 @@ void ViseServer::HandleConnection(boost::shared_ptr<tcp::socket> p_socket) {
     }
 
     if ( http_method_uri == "/favicon.ico" ) {
-      // @todo not implemented yet
-      SendHttp404NotFound( p_socket );
+      SendStaticImageResponse( vise_favicon_fn_, p_socket );
       p_socket->close();
       return;
     }
@@ -850,8 +857,12 @@ void ViseServer::HandleStateGetRequest( std::string resource_name,
       case ViseServer::STATE_SETTING:
         state_html_list_.at(state_id) = state_html_template_list_.at(state_id);
         ReplaceString( state_html_list_.at(state_id), "__SEARCH_ENGINE_NAME__", search_engine_.GetName() );
+        ReplaceString( state_html_list_.at(state_id),
+                       "__DEFAULT_IMAGE_PATH__",
+                       (user_home_dir_.string() + "/vgg/mydata/images/") );
+
         SendCommand("_state show");
-        SendCommand("_dired fetch " + user_home_dir_.string() );
+        //SendCommand("_dired fetch " + user_home_dir_.string() );
         break;
 
       case ViseServer::STATE_INFO:

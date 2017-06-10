@@ -112,6 +112,7 @@ class ViseServer {
   boost::filesystem::path vise_main_html_fn_;
   boost::filesystem::path vise_help_html_fn_;
   boost::filesystem::path vise_404_html_fn_;
+  boost::filesystem::path vise_favicon_fn_;
 
   // resource dir
   boost::filesystem::path vise_datadir_;
@@ -237,19 +238,6 @@ class ViseServer {
   // setup relja_retrival backend and frontend (temporary, until JS based frontend is ready)
   void InitReljaRetrival();
   void InitReljaRetrivalBackend();
-
-  // @todo: move to ViseServer.cc ( do not know how! )
-  template<typename T> void ParseCsvString( const std::string csv, std::vector< T > &d ) {
-    d.clear();
-
-    std::istringstream s( csv );
-    char comma;
-    T value;
-    while ( s >> value ) {
-      d.push_back( value );
-      s >> comma;
-    }
-  }
 
   // for logging statistics
   boost::filesystem::path vise_training_stat_fn_;

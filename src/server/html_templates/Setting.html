@@ -8,7 +8,7 @@
     <link rel="stylesheet" type="text/css" href="vise.css">
 </head>
 <body>
-<h3>Search Engine Setting</h3>
+<h3>Search Engine Settings</h3>
 <table id="vise_basic_setting" class="vise_setting">
   <tr>
     <td>Name&nbsp;&nbsp;</td>
@@ -18,8 +18,17 @@
     <td>Description&nbsp;&nbsp;</td>
     <td><input class="vise_setting_param" type="text" name="projectTitle" size="40" value="My Image Search Project"></td>
   </tr>
+  <tr>
+    <td>Location of images&nbsp;&nbsp;</td>
+    <td><input class="vise_setting_param" type="text" name="imagePath" size="60" value="__DEFAULT_IMAGE_PATH__" readonly></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><span style="color: red">Before pressing the submit button, ensure that you have copied images to the location shown above.</span></td>
+  </tr>
 </table>
 
+<!--
 <div class="vise_setting">
   <tr>
     <td>Location of images&nbsp;&nbsp;</td>
@@ -28,11 +37,12 @@
   <tr>
     <td colspan="2">
     <div class="folder_selector" style="width: 100%">
-      <ul id="dired_current_path_folders" class="dired"><!-- Dynamically Updated --></ul>
+      <ul id="dired_current_path_folders" class="dired"></ul>
     </div>
     </td>
   </tr>
 </div>
+
 
 <table class="vise_setting">
   <tr>
@@ -68,6 +78,7 @@
     <td><input class="vise_setting_param" type="text" name="vocSize" value="1000"></td>
   </tr>
 -->
+<!--
   <tr>
     <td>clusterNumIteration</td>
     <td><input class="vise_setting_param" type="text" name="clusterNumIteration" value="10"></td>
@@ -85,7 +96,7 @@
     </td>
   </tr>
 </table>
-
+-->
 <table class="vise_setting">
   <tr>
     <td><input type="submit" name="Submit" value="Submit" onclick="_vise_send_setting_data()"></td>
