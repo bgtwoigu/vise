@@ -12,9 +12,10 @@ const int SearchEngine::STATE_HAMM       =  7;
 const int SearchEngine::STATE_INDEX      =  8;
 const int SearchEngine::STATE_QUERY      =  9;
 
-SearchEngine::SearchEngine(boost::filesystem::path basedir, Resources* resources) {
-  basedir_   = boost::filesystem::path(basedir);
+SearchEngine::SearchEngine(Resources* resources, boost::filesystem::path engine_dir, boost::filesystem::path vise_src_code_dir) {
   resources_ = resources;
+  basedir_   = engine_dir;
+  vise_src_code_dir_ = vise_src_code_dir;
 
   state_id_ = SearchEngine::STATE_NOT_LOADED;
   engine_name_ = "";
@@ -26,6 +27,11 @@ SearchEngine::SearchEngine(boost::filesystem::path basedir, Resources* resources
   acceptable_img_ext_.insert( ".pgm" );
   acceptable_img_ext_.insert( ".pnm" );
   acceptable_img_ext_.insert( ".ppm" );
+}
+
+SearchEngine::~SearchEngine() {
+  std::cout << "\nStopping search engine " << GetName() << std::flush;
+  StopTraining();
 }
 
 void SearchEngine::Init(std::string name) {
@@ -95,6 +101,7 @@ void SearchEngine::Preprocess() {
       boost::filesystem::path src_fn  = original_imgdir_ / img_rel_path;
       boost::filesystem::path dest_fn = transformed_imgdir_ / img_rel_path;
 
+      //std::cout << "\n\t" << src_fn.string() << " => " << dest_fn.string();
       if ( !boost::filesystem::exists( dest_fn ) ) {
         try {
           // check if image path exists
@@ -103,27 +110,35 @@ void SearchEngine::Preprocess() {
           }
 
           if (transformed_img_width != "original") {
-            Magick::Image im;
-            im.read( src_fn.string() );
-            Magick::Geometry size = im.size();
+            try {
+              //std::cout << "\n  Processing image :  " << src_fn.string() << std::flush;
+              Magick::Image im;
+              im.read( src_fn.string() );
+              Magick::Geometry size = im.size();
 
-            double aspect_ratio =  ((double) size.height()) / ((double) size.width());
+              double aspect_ratio =  ((double) size.height()) / ((double) size.width());
 
-            std::stringstream s;
-            s << transformed_img_width;
-            unsigned int new_width;
-            s >> new_width;
-            unsigned int new_height = (unsigned int) (new_width * aspect_ratio);
+              std::stringstream s;
+              s << transformed_img_width;
+              unsigned int new_width;
+              s >> new_width;
+              unsigned int new_height = (unsigned int) (new_width * aspect_ratio);
 
-            Magick::Geometry resize = Magick::Geometry(new_width, new_height);
-            im.zoom( resize );
+              Magick::Geometry resize = Magick::Geometry(new_width, new_height);
+              im.zoom( resize );
 
-            im.write( dest_fn.string() );
-            imglist_fn_transformed_size_.at(i) = boost::filesystem::file_size(dest_fn.string().c_str());
+              im.write( dest_fn.string() );
+              imglist_fn_transformed_size_.at(i) = boost::filesystem::file_size(dest_fn.string().c_str());
 
-            // to avoid overflow of the message queue
-            if ( (i % 5) == 0 ) {
-              SendProgress( "Preprocess", i+1, imglist_.size() );
+              // to avoid overflow of the message queue
+              if ( (i % 5) == 0 ) {
+                SendProgress( "Preprocess", i+1, imglist_.size() );
+              }
+            } catch( std::exception& e ) {
+              SendLog("Preprocess", "\nfailed to transform image " + src_fn.string() + " : Error [" + e.what() + "]" );
+              std::cout << "\nSearchEngine::Preprocess() : failed to transform image " << src_fn.string() << std::endl;
+              std::cout << e.what() << std::flush;
+              return;
             }
           } else {
             // just copy the files
@@ -148,7 +163,6 @@ void SearchEngine::Preprocess() {
     }
 
     SendLog("Preprocess", "[Done]");
-    std::cout << "\n@todo: Message queue size = " << ViseMessageQueue::Instance()->GetSize() << std::flush;
 
     //if ( ! boost::filesystem::exists( imglist_fn_ ) ) {
     WriteImageListToFile( imglist_fn_.string(), imglist_ );
@@ -207,7 +221,6 @@ void SearchEngine::Descriptor() {
                                   featGetter_obj);
   }
   SendLog("Descriptor", "Completed computing descriptors");
-  std::cout << "\n@todo: Message queue size = " << ViseMessageQueue::Instance()->GetSize() << std::flush;
   SendCommand("Cluster", "_progress reset hide");
 }
 
@@ -215,23 +228,22 @@ void SearchEngine::Descriptor() {
 // $ cd src/external/dkmeans_relja/
 // $ python setup.py build
 // $ sudo python setup.py install
-void SearchEngine::Cluster( boost::filesystem::path vise_src_code_dir ) {
-  std::cout << "\n@todo: Message queue size = " << ViseMessageQueue::Instance()->GetSize() << std::flush;
+void SearchEngine::Cluster() {
   if ( ! ClstFnExists() ) {
     SendLog("Cluster", "\nStarting clustering of descriptors ...");
     SendCommand("Cluster", "_progress reset show");
     SendProgressMessage("Descriptor", "Starting clustering of descriptors");
 
     //boost::thread t( boost::bind( &SearchEngine::RunClusterCommand, this ) );
-    RunClusterCommand( vise_src_code_dir );
+    RunClusterCommand();
   } else {
     //SendLog("Cluster", "\nLoaded");
   }
 }
 
-void SearchEngine::RunClusterCommand( boost::filesystem::path vise_src_code_dir ) {
+void SearchEngine::RunClusterCommand() {
   // @todo: avoid relative path and discover the file "compute_clusters.py" automatically
-  std::string exec_name = vise_src_code_dir.string() + "/src/v2/indexing/compute_clusters.py";
+  std::string exec_name = vise_src_code_dir_.string() + "/src/v2/indexing/compute_clusters.py";
   std::string cmd = "python";
   cmd += " " + exec_name;
   cmd += " " + engine_name_;
@@ -576,6 +588,10 @@ void SearchEngine::ReadConfigFromFile() {
     std::cerr << "\nSearchEngine::ReadConfigFromFile() : error reading configuration from [" << engine_config_fn_ << "]" << std::flush;
     std::cerr << e.what() << std::flush;
   }
+}
+
+void SearchEngine::SendMessage(std::string msg) {
+  SendPacket(GetCurrentStateName(), "message", msg);
 }
 
 void SearchEngine::SendCommand(std::string sender, std::string command) {
@@ -960,6 +976,13 @@ void SearchEngine::UpdateStateInfoList() {
     double time  = m[0] + m[1] * n; // in minutes
     double space = m[2] + m[3] * n; // in MB
 
+    if ( time < 0.0 ) {
+      time = 0.0;
+    }
+    if ( space < 0.0 ) {
+      space = 0.0;
+    }
+
     std::ostringstream sinfo;
     sinfo << "(" << ceil(time) << " min, " << ceil(space) << " MB)";
     state_info_list_.at( state_id ) = sinfo.str();
@@ -1071,7 +1094,178 @@ bool SearchEngine::Delete( std::string search_engine_name ) {
   return false;
 }
 
+//
+// Search engine training
+//
+void SearchEngine::StartTraining() {
+  training_thread_ = new boost::thread( boost::bind( &SearchEngine::Train, this ) );
+}
+
+void SearchEngine::StopTraining() {
+  try {
+    //std::cout << "\nAttempting to stop the training thread ... " << std::flush;
+    training_thread_->interrupt();
+  } catch( std::exception& e ) {
+    std::cerr << "\nFailed to stop training_thread" << std::endl;
+    std::cerr << e.what() << std::flush;    
+  }
+}
+
+void SearchEngine::Train() {
+  //std::cout << "\nTrain() thread started ... " << boost::this_thread::get_id() << std::flush;
+  SendCommand("SearchEngine", "_log clear hide");
+  SendCommand("SearchEngine", "_control_panel clear all");
+  SendCommand("SearchEngine", "_control_panel add <div id=\"toggle_log\" class=\"action_button\" onclick=\"_vise_toggle_log()\">Log</div>");
+
+  // Pre-process
+  if ( state_id_ == SearchEngine::STATE_PREPROCESS ) {
+    Preprocess();
+
+    if ( UpdateState() ) {
+      // send control message : state updated
+      SendCommand("SearchEngine", "_state update_now");
+    } else {
+      SendLog("SearchEngine", "\n" + GetCurrentStateName() + " : failed to change to next state");
+      return;
+    }
+  }
+
+  if ( training_thread_->interruption_requested() ) {
+    SendLog("SearchEngine", "\nStopped training process on user request");
+    return;
+  }
+
+  // Descriptor
+  if ( state_id_ == SearchEngine::STATE_DESCRIPTOR ) {
+    Descriptor();
+
+    if ( UpdateState() ) {
+      // send control message : state updated
+      SendCommand("SearchEngine", "_state update_now");
+    } else {
+      SendMessage("\n" + GetCurrentStateName() + " : failed to change to next state");
+      return;
+    }
+  }
+
+  if ( training_thread_->interruption_requested() ) {
+    SendLog("SearchEngine", "\nStopped training process on user request");
+    return;
+  }
+
+  // Cluster
+  if ( state_id_ == SearchEngine::STATE_CLUSTER ) {
+    Cluster();
+
+    if ( UpdateState() ) {
+      // send control message : state updated
+      SendCommand("SearchEngine", "_state update_now");
+    } else {
+      SendMessage("\n" + GetCurrentStateName() + " : failed to change to next state");
+      return;
+    }
+  }
+
+  if ( training_thread_->interruption_requested() ) {
+    SendLog("SearchEngine", "\nStopped training process on user request");
+    return;
+  }
+
+  // Assign
+  if ( state_id_ == SearchEngine::STATE_ASSIGN ) {
+    Assign();
+
+    if ( UpdateState() ) {
+      // send control message : state updated
+      SendCommand("SearchEngine", "_state update_now");
+    } else {
+      SendMessage("\n" + GetCurrentStateName() + " : failed to change to next state");
+      return;
+    }
+  }
+
+  if ( training_thread_->interruption_requested() ) {
+    SendLog("SearchEngine", "\nStopped training process on user request");
+    return;
+  }
+
+  // Hamm
+  if ( state_id_ == SearchEngine::STATE_HAMM ) {
+    Hamm();
+
+    if ( UpdateState() ) {
+      // send control message : state updated
+      SendCommand("SearchEngine", "_state update_now");
+    } else {
+      SendMessage("\n" + GetCurrentStateName() + " : failed to change to next state");
+      return;
+    }
+  }
+
+  if ( training_thread_->interruption_requested() ) {
+    SendLog("SearchEngine", "\nStopped training process on user request");
+    return;
+  }
+
+  // Index
+  if ( state_id_ == SearchEngine::STATE_INDEX ) {
+    Index();
+
+    if ( UpdateState() ) {
+      // send control message : state updated
+      SendCommand("SearchEngine", "_state update_now");
+
+    } else {
+      SendMessage("\n" + GetCurrentStateName() + " : failed to change to next state");
+      return;
+    }
+  }
+
+  QueryInit();
+  SendCommand("SearchEngine", "_go_to home");
+}
+
+void SearchEngine::QueryInit() {
+
+  /*
+  // construct dataset
+  dataset_ = new datasetV2( search_engine_.GetEngineConfigParam("dsetFn"),
+  search_engine_.GetEngineConfigParam("databasePath"),
+  search_engine_.GetEngineConfigParam("docMapFindPath") );
+
+  // load the search index in separate thread
+  // while the user browses image list and prepares search area
+  vise_load_search_index_thread_ = new boost::thread( boost::bind( &ViseServer::QueryLoadSearchIndex, this ) );
+  */
+  boost::thread t( boost::bind( &SearchEngine::InitReljaRetrival, this ) );
+}
+
+// TEMPORARY CODE -- WILL BE REMOVED IN FUTURE WHEN NEW FRONTEND IS RELEASED
+// setup relja_retrival backend and frontend (temporary, until JS based frontend is ready)
+extern void api_v2(std::vector< std::string > argv);
+void SearchEngine::InitReljaRetrival() {
+  boost::thread backend( boost::bind( &SearchEngine::InitReljaRetrivalBackend, this ) );
+  //boost::thread frontend( boost::bind( &ViseServer::InitReljaRetrivalFrontend, this ) );
+
+  backend.join();
+  //frontend.join();
+}
+
+// Note: frontend is invoked by src/api/abs_api.cpp::InitReljaRetrivalFrontend()
+void SearchEngine::InitReljaRetrivalBackend() {
+  // start relja_retrival backend
+  std::vector< std::string > param;
+  param.push_back("api_v2");
+  param.push_back("65521");
+  param.push_back( GetName() );
+  param.push_back( GetEngineConfigFn().string() );
+  param.push_back( vise_src_code_dir_.string() );
+  api_v2( param );
+}
+
+//
 // for debug
+//
 void SearchEngine::PrintEngineConfig() {
   std::cout << "\nShowing configurations for [" << engine_name_ << "] :" << std::endl;
   std::map<std::string, std::string>::iterator it;

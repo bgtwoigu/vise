@@ -13,6 +13,9 @@
 #include <string>
 #include <fstream>
 #include <vector>
+#include <map>
+
+#include <boost/filesystem.hpp>  // to query/update filesystem
 
 namespace ViseUtils {
 
@@ -25,7 +28,14 @@ namespace ViseUtils {
   void StringSplit( const std::string s, char sep, std::vector<std::string> &tokens );
   bool StringStartsWith( const std::string &s, const std::string &prefix );
   void StringHttpUnescape( std::string &s );
+  void StringParseKeyValue(std::string keyvalue_str, char separator, std::map< std::string, std::string >& keyvalue);
 
+  // HTTP
+  static const std::string crlf  = "\r\n";
+  static const std::string crlf2 = "\r\n\r\n";
+
+  bool HttpGetHeaderValue(const std::string& header, const std::string& name, std::string& value);
+  std::string HttpGetFileContentType( const boost::filesystem::path& fn);
 }
 
 #endif /* _VISE_UTILS_H */

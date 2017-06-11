@@ -17,9 +17,12 @@ Connection::Connection(boost::asio::io_service& io_service, SearchEngine* search
   request_header_seen_ = false;
   session_name_ = boost::filesystem::unique_path("s%%%%%%%%%%%%");
   response_code_ = -1; // unknown
+
+  //std::cout << "\n[[[START: " << session_name_ << "]]]" << std::flush;
 }
 
 Connection::~Connection() {
+  //std::cout << "\n{{{END  : " << session_name_ << "}}}" << std::flush;
 }
 
 boost::asio::ip::tcp::socket& Connection::Socket() {
@@ -72,7 +75,7 @@ void Connection::OnRequestRead(const boost::system::error_code& e, std::size_t b
 
     bool found;
     std::string content_len_str;
-    found = GetHttpHeaderValue(request_header_, "Content-Length: ", content_len_str);
+    found = ViseUtils::HttpGetHeaderValue(request_header_, "Content-Length: ", content_len_str);
     if ( found ) {
       std::stringstream s ( content_len_str );
       s >> request_content_len_;
@@ -101,56 +104,6 @@ void Connection::OnResponseWrite(const boost::system::error_code& e) {
     // close connection on successful write operation
     boost::system::error_code ignored_err;
     socket_.shutdown( boost::asio::ip::tcp::socket::shutdown_both, ignored_err );
-  }
-}
-
-//
-// Helper functions
-//
-
-bool Connection::GetHttpHeaderValue(const std::string& header, const std::string& name, std::string& value) {
-  std::size_t start_index = header.find( name );
-  //std::cout << "\n\tstart=" << start_index << std::flush;
-  if ( start_index == std::string::npos ) {
-    return false;
-  } else {
-    std::size_t end_index = header.find( crlf, start_index + name.length() );
-    //std::cout << ", end=" << end_index << std::flush;
-    if ( end_index == std::string::npos ) {
-      return false;
-    } else {
-      value = header.substr( start_index + name.length(), end_index - start_index - name.length() );
-      //std::cout << "[" << name << "=" << value << "]" << std::flush;
-      return true;
-    }
-  }
-}
-
-std::string Connection::GetFileContentType( const boost::filesystem::path& fn) {
-  std::string ext = fn.extension().string();
-  std::string http_content_type = "unknown";
-  if ( ext == ".jpg" || ext == ".JPG" ) {
-    http_content_type = "image/jpeg";
-  } else if ( ext == ".png" ) {
-    http_content_type = "image/png";
-  } else if ( ext == ".txt" ) {
-    http_content_type = "text/plain";
-  } else if ( ext == ".html" ) {
-    http_content_type = "text/html";
-  } else if ( ext == ".json" ) {
-    http_content_type = "application/json";
-  } else if ( ext == ".js" ) {
-    http_content_type = "application/javascript";
-  }
-
-  return http_content_type;
-}
-
-bool Connection::StringStartsWith( const std::string &s, const std::string &prefix ) {
-  if ( s.substr(0, prefix.length()) == prefix ) {
-    return true;
-  } else {
-    return false;
   }
 }
 
@@ -225,7 +178,7 @@ void Connection::SendImageResponse(const boost::filesystem::path &im_fn) {
     Magick::Image im;
     im.read( im_fn.string().c_str() );
 
-    std::string content_type = GetFileContentType(im_fn);
+    std::string content_type = ViseUtils::HttpGetFileContentType(im_fn);
     SendImageResponse( im, content_type );
   } catch( std::exception& e ) {
     std::cerr << "\nViseServer::SendStaticImageResponse() : image cannot be read : " << im_fn.string() << std::endl;
@@ -235,18 +188,35 @@ void Connection::SendImageResponse(const boost::filesystem::path &im_fn) {
 }
 
 void Connection::SendImageResponse(Magick::Image &im, std::string content_type) {
-  Magick::Blob im_blob;
+  // Connection::image_blob_ keeps the image data safe until the async_write()
+  // operation completes. This is necessary.
   try {
     im.magick("JPEG");
-    im.write( &im_blob );
+    im.write( &image_blob_ );
   } catch( std::exception &e) {
     std::cerr << "\nViseServer::SendImageResponse() : exception " << e.what() << std::flush;
     ResponseHttp404();
     return;
   }
 
-  Connection::SendHttpResponse(content_type, (char *) im_blob.data() );
-  WriteResponse();
+  // calling WriteResponse() is avoided here for performance reasons
+  std::ostringstream http_header;
+  http_header << http_200
+              << "Content-Type: " << content_type << crlf
+              << "Content-Length: " << image_blob_.length() << crlf2;
+
+  boost::asio::write(socket_, 
+                     boost::asio::buffer( http_header.str(), http_header.str().length() ),
+                     boost::asio::transfer_all());
+
+  char* image_buffer = (char *) image_blob_.data();
+  boost::asio::async_write(socket_, boost::asio::buffer( image_buffer, image_blob_.length() ),
+                           strand_.wrap(boost::bind(&Connection::OnResponseWrite,
+                                                    shared_from_this(),
+                                                    boost::asio::placeholders::error
+                                                    )
+                                        )
+                           );
   response_code_ = 200;
 }
 
@@ -275,7 +245,7 @@ void Connection::ProcessRequestData() {
   }
   request_http_uri_ = request_header_.substr(first_spc+1, second_spc - first_spc - 1);
 
-  std::cout << "\n[" << session_name_ << "] " << request_http_method_ << " {" 
+  std::cout << "\n  [" << session_name_ << "] " << request_http_method_ << " {" 
             << request_http_uri_ << "} [ request size (header,content) = (" 
             << request_header_.length() << "," << request_content_.str().length() << ") bytes]" << std::flush;
 
@@ -342,13 +312,50 @@ void Connection::HandleGetRequest() {
   }
 
   const std::string message_prefix = "/_message";
-  if ( StringStartsWith(request_http_uri_, message_prefix) ) {
+  if ( ViseUtils::StringStartsWith(request_http_uri_, message_prefix) ) {
     // since HTTP server always requires a request in order to send responses,
     // we always create this _message channel which keeps waiting for messages
     // to be pushed to vise_message_queue_, sends this message to the client
     // which in turn again creates another request for any future messages
     std::string msg = ViseMessageQueue::Instance()->BlockingPop(); // blocks until a message is available
     SendHttpResponse( "text/plain", msg);
+    return;
+  }
+
+  // if http_method_uri contains request for static resource in the form:
+  //   GET /_static/ox5k/dir1/dir2/all_souls_000022.jpg?original
+  // return the static resource as binary data in HTTP response
+  const std::string static_resource_prefix = "/_static/";
+  if ( ViseUtils::StringStartsWith(request_http_uri_, static_resource_prefix) ) {
+    std::string resource_uri = request_http_uri_.substr( static_resource_prefix.size(), std::string::npos);
+    std::string resource_name;
+    std::vector< std::string > args_key, args_value;
+    std::map< std::string, std::string > resource_args;
+
+    std::size_t qmark = resource_uri.find('?');
+    resource_name = resource_uri.substr(0, qmark);
+    std::string keyvalue_str = resource_uri.substr(qmark+1, std::string::npos); // remove ? prefix
+    if ( qmark != std::string::npos ) {
+      ViseUtils::StringParseKeyValue(keyvalue_str, '&', resource_args);
+    }
+
+    ServeStaticResource( resource_name, resource_args );
+    return;
+  }
+
+  if ( request_http_uri_ == "/_random_image" ) {
+    // respond with a random training image
+    if ( !search_engine_->IsImglistEmpty() ) {
+      int index = rand() % search_engine_->GetImglistSize();
+      std::string im_fn = search_engine_->GetImglistFn(index);
+      std::ostringstream s;
+      s << "<div class=\"random_image\"><img src=\"/_static/"
+        << search_engine_->GetName() << "/"
+        << im_fn << "?variant=original\" /></div>";
+      SendHtmlResponse( s.str() );
+    } else {
+      ResponseHttp404();
+    }
     return;
   }
 
@@ -370,6 +377,7 @@ void Connection::HandleStateGetRequest( std::string resource_name) {
   if ( state_id != -1 ) {
     std::string state_html_fn = search_engine_->GetStateHtmlFn(state_id);
     std::string state_html( resources_->GetFileContents(state_html_fn) );
+    //std::cout << "\nstate_html_fn = " << state_html_fn << ", " << state_html.length() << std::flush;
     if ( state_id == SearchEngine::STATE_QUERY && search_engine_->GetCurrentStateId() == SearchEngine::STATE_QUERY ) {
       return;
     } else {
@@ -386,6 +394,62 @@ void Connection::HandleStateGetRequest( std::string resource_name) {
       }
 
       SendHtmlResponse( state_html );
+      return;
+    }
+  }
+  ResponseHttp404();
+}
+
+void Connection::ServeStaticResource(const std::string resource_name, const std::map< std::string, std::string> &resource_args) {
+  // resource uri format:
+  // SEARCH_ENGINE_NAME/...path...
+  //std::cout << "\nViseServer::ServeStaticResource() : " << resource_name << ", " << resource_args.size() << std::flush;
+  std::size_t first_slash_pos = resource_name.find('/', 0); // ignore the first /
+
+  //std::map<std::string, std::string>::const_iterator it;
+  //for ( it=resource_args.begin(); it!=resource_args.end(); ++it) {
+  //  std::cout << "\n" << it->first << " => " << it->second << std::flush;
+  //}
+
+
+  if ( first_slash_pos != std::string::npos ) {
+    std::string search_engine_name = resource_name.substr(0, first_slash_pos);
+    if ( search_engine_->GetName() == search_engine_name ) {
+      std::string res_rel_path = resource_name.substr(first_slash_pos+1, std::string::npos);
+      boost::filesystem::path res_fn = search_engine_->GetTransformedImageDir() / res_rel_path;
+      if ( resource_args.empty() ) {
+        if ( boost::filesystem::exists(res_fn) ) {
+          std::cout << "\nSending image : " << res_fn.string() << std::flush;
+          SendImageResponse(res_fn);
+        } else {
+          ResponseHttp404();
+        }
+        return;
+      }
+
+      if ( resource_args.count("variant") == 1 ) {
+        if ( resource_args.find("variant")->second == "original" ) {
+          res_fn = search_engine_->GetOriginalImageDir() / res_rel_path;
+        }
+      }
+
+      if ( ! boost::filesystem::exists(res_fn) ) {
+        ResponseHttp404();
+        return;
+      }
+
+      try {
+        Magick::Image im;
+        im.read( res_fn.string() );
+
+        // @todo: transform image according to resource_args
+
+        std::string content_type = ViseUtils::HttpGetFileContentType(res_fn);
+        SendImageResponse( im, content_type );
+        return;
+      } catch ( std::exception &error ) {
+        ResponseHttp404();
+      }
       return;
     }
   }
@@ -409,6 +473,7 @@ void Connection::HandlePostRequest() {
       if ( tokens.at(0) == "create_search_engine" ) {
         if ( search_engine_->Exists( search_engine_name ) ) {
           SendMessage("Search engine by that name already exists!");
+          SendHttpPostResponse( http_post_data, "ERR" );
         } else {
           if ( SearchEngine::ValidateName( search_engine_name ) ) {
             search_engine_->Init( search_engine_name );
@@ -465,12 +530,52 @@ void Connection::HandlePostRequest() {
       return;
     }
   } else {
-    // state POST data
+    // state POST data is stored by request_content_
+    // For example: POST /Settings [post data: engine_description=...
+    std::string resource_name = request_http_uri_.substr(1, std::string::npos); // remove prefix "/"
+    int state_id = search_engine_->GetStateId( resource_name );
+    if ( state_id != -1 ) {
+      HandleStatePostData(state_id);
+      return;
+    }
   }
 
   // default handler: unknown POST data
   ResponseHttp404();
   return;
+}
+
+void Connection::HandleStatePostData( int state_id ) {
+  if ( state_id == SearchEngine::STATE_SETTING ) {
+    search_engine_->SetEngineConfig(request_content_.str());
+    search_engine_->WriteConfigToFile();
+    if ( search_engine_->GetImglistSize() == 0 ) {
+      search_engine_->CreateFileList();
+    }
+    search_engine_->UpdateStateInfoList();
+
+    if ( search_engine_->UpdateState() ) {
+      // send control message : state updated
+      SendCommand("_state update_now");
+      SendCommand("_content clear");
+    }
+    SendHttpPostResponse( request_content_.str(), "OK" );
+  } else if ( state_id == SearchEngine::STATE_INFO ) {
+    if ( request_content_.str() == "proceed" ) {
+      if ( search_engine_->UpdateState() ) {
+        // send control message : state updated
+        SendCommand("_state update_now");
+        SendHttpPostResponse( request_content_.str(), "OK" );
+
+        // initiate the search engine training process
+        search_engine_->StartTraining();
+      } else {
+        SendHttpPostResponse( request_content_.str(), "ERR" );
+      }
+    }
+  } else {
+    std::cerr << "\nViseServer::HandleStatePostData() : Do not know how to handle this HTTP POST data!" << std::flush;
+  }
 }
 
 //

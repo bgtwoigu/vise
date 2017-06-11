@@ -43,7 +43,8 @@
 class SearchEngine {
 public:
 
-  SearchEngine(boost::filesystem::path engine_dir, Resources* resources);
+  SearchEngine(Resources* resources, boost::filesystem::path engine_dir, boost::filesystem::path vise_src_code_dir);
+  ~SearchEngine();
   void Init(std::string name);
 
   // search engine possible states
@@ -73,7 +74,7 @@ public:
 
   void Preprocess();
   void Descriptor();
-  void Cluster( boost::filesystem::path vise_source_code_dir);
+  void Cluster();
   void Assign();
   void Hamm();
   void Index();
@@ -124,10 +125,18 @@ public:
   void GetSearchEngineList( std::vector< std::string >& engine_list ) const;
   bool Delete( const std::string search_engine_name );
 
+  // search engine training
+  void StartTraining();
+  void StopTraining();
+  void QueryInit();
+
  private:
   std::string engine_name_;
   Resources* resources_;
   boost::system::error_code error_;
+
+  // threads
+  boost::thread *training_thread_;
 
   // state variables
   int state_id_;
@@ -146,6 +155,7 @@ public:
 
   boost::filesystem::path basedir_;
   boost::filesystem::path enginedir_;
+  boost::filesystem::path vise_src_code_dir_;
 
   boost::filesystem::path original_imgdir_;
   boost::filesystem::path transformed_imgdir_;
@@ -170,13 +180,17 @@ public:
   void SendProgressMessage(std::string state_name, std::string msg);
   void SendCommand(std::string sender, std::string command);
   void SendLog(std::string sender, std::string log);
+  void SendMessage(std::string message);
   void SendPacket(std::string sender, std::string type, std::string messsage);
 
   void WriteImageListToFile(const std::string fn,
                             const std::vector< std::string > &imlist);
 
+  void Train();
   void InitEngineResources( std::string name );
-  void RunClusterCommand( boost::filesystem::path vise_src_code_dir );
+  void RunClusterCommand();
+  void InitReljaRetrival();
+  void InitReljaRetrivalBackend();
 };
 
 #endif /* _VISE_SEARCH_ENGINE_H */

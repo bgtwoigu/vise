@@ -81,5 +81,67 @@ void StringHttpUnescape( std::string &s ) {
     }
   }
 }
+
+// keyvalue_str = "key1=value1&key2=value2,..."
+void StringParseKeyValue(std::string keyvalue_str, char separator, std::map< std::string, std::string >& keyvalue) {
+  keyvalue.clear();
+  if ( keyvalue_str == "" ) {
+    return;
+  }
+
+  std::vector< std::string > tokens;
+  ViseUtils::StringSplit( keyvalue_str, separator, tokens );
+
+  for ( unsigned int i=0; i<tokens.size(); i++ ) {
+    std::vector< std::string > keyvali;
+    ViseUtils::StringSplit( tokens.at(i), '=', keyvali );
+
+    if ( keyvali.size() == 2 ) {
+      keyvalue.insert( std::pair<std::string, std::string>(keyvali.at(0), keyvali.at(1)) );
+    } else {
+      std::cerr << "\nViseUtils::StringParseKeyValue() : error parsing key/value data from [" << keyvalue_str << "]" << std::flush;
+    }
+  }
+}
+
+
+std::string HttpGetFileContentType( const boost::filesystem::path& fn) {
+  std::string ext = fn.extension().string();
+  std::string http_content_type = "unknown";
+  if ( ext == ".jpg" || ext == ".JPG" ) {
+    http_content_type = "image/jpeg";
+  } else if ( ext == ".png" ) {
+    http_content_type = "image/png";
+  } else if ( ext == ".txt" ) {
+    http_content_type = "text/plain";
+  } else if ( ext == ".html" ) {
+    http_content_type = "text/html";
+  } else if ( ext == ".json" ) {
+    http_content_type = "application/json";
+  } else if ( ext == ".js" ) {
+    http_content_type = "application/javascript";
+  }
+
+  return http_content_type;
+}
+
+bool HttpGetHeaderValue(const std::string& header, const std::string& name, std::string& value) {
+  std::size_t start_index = header.find( name );
+  //std::cout << "\n\tstart=" << start_index << std::flush;
+  if ( start_index == std::string::npos ) {
+    return false;
+  } else {
+    std::size_t end_index = header.find( crlf, start_index + name.length() );
+    //std::cout << ", end=" << end_index << std::flush;
+    if ( end_index == std::string::npos ) {
+      return false;
+    } else {
+      value = header.substr( start_index + name.length(), end_index - start_index - name.length() );
+      //std::cout << "[" << name << "=" << value << "]" << std::flush;
+      return true;
+    }
+  }
+}
+
 }
 

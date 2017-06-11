@@ -14,6 +14,7 @@
 #include <string>
 #include <chrono>
 #include <ctime>
+#include <map>
 
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
@@ -64,6 +65,8 @@ class Connection : public boost::enable_shared_from_this<Connection>, private bo
   void HandleGetRequest();
   void HandlePostRequest();
   void HandleStateGetRequest( std::string resource_name);
+  void HandleStatePostData(int state_id);
+  void ServeStaticResource(const std::string resource_name, const std::map< std::string, std::string> &resource_args);
 
   // HTTP Request
   boost::array<char, 1024> buffer_;
@@ -98,11 +101,6 @@ class Connection : public boost::enable_shared_from_this<Connection>, private bo
   void ResponseHttp400();
   void ResponseHttp200();
 
-  // Helper functions
-  bool GetHttpHeaderValue(const std::string& header, const std::string& name, std::string& value);
-  std::string GetFileContentType( const boost::filesystem::path& fn);
-  bool StringStartsWith( const std::string &s, const std::string &prefix );
-
   // HTTP Responses
   void WriteResponse();
   void SendHttpResponse(const std::string content_type, const std::string &content);
@@ -117,6 +115,8 @@ class Connection : public boost::enable_shared_from_this<Connection>, private bo
   void SendCommand(std::string command);
   void SendPacket(std::string type, std::string message);
 
+  // for HTTP response containing image
+  Magick::Blob image_blob_;
 };
 
 #endif

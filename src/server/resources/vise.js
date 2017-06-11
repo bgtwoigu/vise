@@ -273,6 +273,14 @@ function _vise_handle_command(sender, command_str) {
           break;
       }
       break;
+
+    case "_content":
+      switch( param ) {
+        case "clear":
+          document.getElementById("content").innerHTML = "";
+      }
+      break;
+
     case "_log":
       _vise_handle_log_command(param);
       break;

@@ -54,13 +54,12 @@ ViseServer::ViseServer( const std::string address, const std::string port, std::
   resources_->LoadAllResources(vise_resourcedir_);
 
   // search engine
-  search_engine_ = new SearchEngine(vise_enginedir_, resources_);
+  search_engine_ = new SearchEngine(resources_, vise_enginedir_, vise_src_code_dir_);
 
   server_connection_count_ = 0;
   AcceptNewConnection();
   std::cout << "\nserver waiting for connections at " << address_ << ":" << port_ << std::flush;
   std::cout << "\n[Press Ctrl + C to stop the server]\n" << std::flush;
-
 }
 
 ViseServer::~ViseServer() {
