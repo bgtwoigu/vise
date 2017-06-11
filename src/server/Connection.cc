@@ -104,6 +104,7 @@ void Connection::OnResponseWrite(const boost::system::error_code& e) {
     // close connection on successful write operation
     boost::system::error_code ignored_err;
     socket_.shutdown( boost::asio::ip::tcp::socket::shutdown_both, ignored_err );
+    //std::cout << "\nConnection::WriteResponse() : [" << session_name_.string() << "] sent response_buffer_ = " << std::flush;
   }
 }
 
@@ -145,6 +146,7 @@ void Connection::WriteResponse() {
                                         )
                            );
   //std::cout << "\nConnection::WriteResponse() : response_buffer_ = " << response_buffer_.size() << std::flush;
+  //std::cout << "\nConnection::WriteResponse() : [" << session_name_.string() << "] sending response_buffer_ = " << response_buffer_.size() << std::flush;
 }
 
 void Connection::SendHttpResponse(const std::string content_type, const std::string& content) {
@@ -160,7 +162,8 @@ void Connection::SendHttpResponse(const std::string content_type, const std::str
   http_response << "Content-type: " << content_type << "; charset=utf-8\r\n";
   http_response << "Content-Length: " << content.length() << "\r\n";
   http_response << "\r\n";
-  http_response << content;
+  http_response << content << std::flush;
+  //std::cout << "\nConnection::SendHttpResponse() : [" << session_name_.string() << "] sending response_buffer_ = " << response_buffer_.size() << ", content=" << content << std::flush;
 
   WriteResponse();
   response_code_ = 200;
@@ -318,7 +321,12 @@ void Connection::HandleGetRequest() {
     // we always create this _message channel which keeps waiting for messages
     // to be pushed to vise_message_queue_, sends this message to the client
     // which in turn again creates another request for any future messages
+
+    // what if the peer closes connection?
+    // socket_ is invalidated
+    std::cout << "\n\tBlockingPop():: BLOCKED for session " << session_name_.string() << std::flush;
     std::string msg = ViseMessageQueue::Instance()->BlockingPop(); // blocks until a message is available
+    std::cout << "\n\tBlockingPop():: UNBLOCKED for session " << session_name_.string() << std::flush;
     SendHttpResponse( "text/plain", msg);
     return;
   }
@@ -375,7 +383,7 @@ void Connection::HandleGetRequest() {
 void Connection::HandleStateGetRequest( std::string resource_name) {
   std::string state_name = resource_name;
   int state_id = search_engine_->GetStateId( resource_name );
-  std::cout << "\nstate_name = " << state_name << ", " << state_id << std::flush;
+  //std::cout << "\nstate_name = " << state_name << ", " << state_id << std::flush;
   if ( state_id != -1 ) {
     std::string state_html_fn = search_engine_->GetStateHtmlFn(state_id);
     std::string state_html = resources_->GetFileContents(state_html_fn);
@@ -393,7 +401,7 @@ void Connection::HandleStateGetRequest( std::string resource_name) {
         state_html = search_engine_->GetStateComplexityInfo();
         SendCommand("_control_panel add <div class=\"action_button\" onclick=\"_vise_server_send_state_post_request('Info', 'proceed')\">Proceed</div>");
       }
-      std::cout << "\nstate_html_fn = " << state_html_fn << ", " << state_html << std::flush;
+      //std::cout << "\nstate_html_fn = " << state_html_fn << std::flush;
       SendHtmlResponse( state_html );
       return;
     }
@@ -472,23 +480,16 @@ void Connection::HandlePostRequest() {
     if ( tokens.size() == 2 ) {
       std::string search_engine_name = tokens.at(1);
       if ( tokens.at(0) == "create_search_engine" ) {
-std::cout << "\nA" << std::flush;
         if ( search_engine_->Exists( search_engine_name ) ) {
           SendMessage("Search engine by that name already exists!");
           SendHttpPostResponse( http_post_data, "ERR" );
         } else {
           if ( SearchEngine::ValidateName( search_engine_name ) ) {
             search_engine_->Init( search_engine_name );
-std::cout << "\nB" << std::flush;
             if ( search_engine_->UpdateState() ) {
               // send control message : state updated
-std::cout << "\nC" << std::flush;
               SendCommand("_state update_now");
-std::cout << "\nD" << std::flush;
               SendHttpPostResponse( http_post_data, "OK" );
-std::cout << "\nE" << std::flush;
-              SendCommand("_state update_now");
-std::cout << "\nF" << std::flush;
             } else {
               SendMessage("Cannot initialize search engine [" + search_engine_name + "]");
               SendHttpPostResponse( http_post_data, "ERR" );
@@ -508,8 +509,8 @@ std::cout << "\nF" << std::flush;
             if ( search_engine_->Exists( search_engine_name ) ) {
               SendMessage("Loading search engine [" + search_engine_name + "] ...");
               search_engine_->Load( search_engine_name );
+              SendCommand("_state update_now");
               SendHttpPostResponse( http_post_data, "OK" );
-              //SendCommand("_state update_now");
             } else {
               SendHttpPostResponse( http_post_data, "ERR" );
               SendMessage("Search engine does not exists!");
@@ -566,8 +567,10 @@ void Connection::HandleStatePostData( int state_id ) {
       // send control message : state updated
       SendCommand("_state update_now");
       SendCommand("_content clear");
+      SendHttpPostResponse( "http post data of vise configuration", "OK" );
+    } else {
+      SendHttpPostResponse( "http post data of vise configuration", "ERR" );
     }
-    SendHttpPostResponse( "http post data of vise configuration", "OK" );
   } else if ( state_id == SearchEngine::STATE_INFO ) {
     if ( request_content_.str() == "proceed" ) {
       if ( search_engine_->UpdateState() ) {

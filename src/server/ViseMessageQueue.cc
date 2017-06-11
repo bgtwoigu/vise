@@ -21,6 +21,14 @@ std::string ViseMessageQueue::BlockingPop() {
   boost::mutex::scoped_lock lock(mtx_);
   while ( messages_.empty() ) {
     queue_condition_.wait(lock);
+/**/
+    if ( queue_condition_.timed_wait(lock, boost::posix_time::milliseconds(997), []{ return false; }) ) {
+      continue;
+    } else {
+      std::cout << "\nBlockingPop() TIMEOUT UNBLOCKED" << std::flush;
+      return "";
+    }
+
   }
   std::string d = messages_.front();
   messages_.pop();

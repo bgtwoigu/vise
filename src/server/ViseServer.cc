@@ -104,7 +104,7 @@ void ViseServer::Stop() {
   // Send last message to unblock the ViseMessageQueue
   // this is required because a client connection is always present to deliver
   // any new messages to the client
-  ViseMessageQueue::Instance()->Push( "Bye" );
+  //ViseMessageQueue::Instance()->Push( "Bye" );
 
   io_service_.stop();
 }

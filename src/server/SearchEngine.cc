@@ -1235,7 +1235,7 @@ void SearchEngine::Train() {
   }
 
   QueryInit();
-  SendCommand("SearchEngine", "_go_to home");
+  //SendCommand("SearchEngine", "_go_to home");
 }
 
 void SearchEngine::Load( std::string search_engine_name ) {

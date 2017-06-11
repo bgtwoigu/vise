@@ -3,16 +3,19 @@ var VISE_THEME_MESSAGE_TIMEOUT_MS = 4000;
 var _vise_message_clear_timer;
 
 // XHR
-var _vise_server = new XMLHttpRequest();
+var _vise_server_get = new XMLHttpRequest();
+var _vise_server_post = new XMLHttpRequest();
 var _vise_messenger = new XMLHttpRequest();
-var _vise_query = new XMLHttpRequest();
+var _vise_state = new XMLHttpRequest();
 
 var VISE_SERVER_ADDRESS    = "http://localhost:9971/";
 var VISE_MESSENGER_ADDRESS = VISE_SERVER_ADDRESS + "_message";
 var VISE_QUERY_ADDRESS     = VISE_SERVER_ADDRESS + "_query";
 
-_vise_server.addEventListener("load", _vise_server_response_listener);
+_vise_server_get.addEventListener("load", _vise_server_get_response_listener);
+_vise_server_post.addEventListener("load", _vise_server_post_response_listener);
 _vise_messenger.addEventListener("load", _vise_message_listener);
+_vise_state.addEventListener("load", _vise_state_listener);
 
 var _vise_current_state_id = -1;
 var _vise_current_state_name = "";
@@ -46,55 +49,39 @@ function _vise_init() {
   //_vise_select_img_region( 'https://www.nasa.gov/sites/default/files/thumbnails/image/earthsun20170412.png' );
 
   // request the contents of vise_index.html
-  _vise_server.open("GET", VISE_SERVER_ADDRESS + "_vise_home.html");
-  _vise_server.send();
+  _vise_server_send_get_request("_vise_home.html");
 
   // create the seed connection to receive messages
   _vise_messenger.open("GET", VISE_MESSENGER_ADDRESS);
   _vise_messenger.send();
-
 }
 
 
 //
 // Vise Server ( localhost:9973 )
 //
-function _vise_server_response_listener() {
+function _vise_server_get_response_listener() {
   var response_str = this.responseText;
-  var content_type = this.getResponseHeader('Content-Type')
+  var content_type = this.getResponseHeader('Content-Type');
 
   if ( content_type.includes("text/html") ) {
     document.getElementById("content").innerHTML = response_str;
-  } else if ( content_type.includes("application/json") ) {
-    try {
-      var json = JSON.parse(response_str);
-
-      switch(json.id) {
-        case 'search_engine_state':
-          _vise_update_state_info(json);
-          break;
-
-        case 'http_post_response':
-          // @todo handle post response, current assumption is that it will be OK
-          // json['result'] === "OK"
-          break;
-
-        case 'dired':
-          _vise_handle_dired_response(json);
-          break;
-
-        default:
-          console.log("Do not know where to forward the received response!");
-          console.log(response_str);
-      }
-    } catch( err ) {
-      console.log("Failed to parse json : " + response_str);
-      console.log(err);
-    }
   } else {
     console.log("Received response of unknown content-type : " + content_type);
   }
 }
+
+function _vise_server_post_response_listener() {
+  var response_str = this.responseText;
+  var content_type = this.getResponseHeader('Content-Type');
+
+  if ( content_type.includes("application/json") ) {
+    // @todo handle post response, current assumption is that it will be OK
+  } else {
+    console.log("Received response of unknown content-type : " + content_type);
+  }
+}
+
 
 function _vise_message_listener() {
   var packet = this.responseText;
@@ -103,11 +90,9 @@ function _vise_message_listener() {
   _vise_messenger.open("GET", VISE_MESSENGER_ADDRESS);
   _vise_messenger.send();
 
-  // process the received message asynchronously
-  setTimeout( function() {
-    _vise_handle_message( packet );
-  }, 0);
+  _vise_handle_message( packet );
 }
+
 // msg = sender receiver msg
 function _vise_handle_message(packet) {
   //console.log("message: " + packet);
@@ -212,7 +197,7 @@ function _vise_handle_command(sender, command_str) {
     case "_state":
       switch( param ) {
         case 'update_now':
-          _vise_server_send_get_request("_state");
+          _vise_fetch_state();
           break;
         case "show":
           document.getElementById("footer").style.display = "block";
@@ -235,15 +220,6 @@ function _vise_handle_command(sender, command_str) {
       break;
     case "_control_panel":
       _vise_handle_control_panel_command(param);
-      break;
-
-    case "_dired":
-      if ( param.startsWith("fetch") ) {
-        var param_split = param.split(' ');
-        _dired_current_path_name = param_split[1];
-        _vise_server.open("GET", VISE_SERVER_ADDRESS + "_dired?path=" + _dired_current_path_name + "&folder=.");
-        _vise_server.send();
-      }
       break;
 
     case "_progress":
@@ -293,8 +269,7 @@ function _vise_handle_command(sender, command_str) {
 
     case "_go_home":
       // request the contents of vise_index.html
-      _vise_server.open("GET", VISE_SERVER_ADDRESS + "_vise_home.html");
-      _vise_server.send();
+      _vise_server_send_get_request("_vise_home.html");
       break;
 
     default:
@@ -385,7 +360,7 @@ function _vise_update_state_info( json ) {
     _vise_progress[_vise_current_state_name] = 0;
 
     // request content for this state
-    _vise_fetch_current_state_content();
+    _vise_server_send_get_request( _vise_current_state_name );
 
     // reset the progress bar
     _vise_reset_progress_bar();
@@ -399,11 +374,6 @@ function _vise_update_state_info( json ) {
   }
 }
 
-function _vise_fetch_current_state_content() {
-  //var resource_uri = _vise_current_search_engine_name + "/" + _vise_current_state_name;
-  var resource_uri = _vise_current_state_name;
-  _vise_server_send_get_request( resource_uri );
-}
 //
 // Vise Server requests at
 // http://localhost:8080
@@ -443,27 +413,43 @@ function _vise_toggle_experimental_features() {
 }
 
 function _vise_server_send_post_request(post_data) {
-  _vise_server.open("POST", VISE_SERVER_ADDRESS);
-  _vise_server.send(post_data);
+  _vise_server_post.open("POST", VISE_SERVER_ADDRESS);
+  _vise_server_post.send(post_data);
 }
 
 function _vise_server_send_state_post_request(state_name, post_data) {
-  _vise_server.open("POST", VISE_SERVER_ADDRESS + state_name);
-  _vise_server.send(post_data);
+  _vise_server_post.open("POST", VISE_SERVER_ADDRESS + state_name);
+  _vise_server_post.send(post_data);
 }
 
 function _vise_server_send_get_request(resource_name) {
-  _vise_server.open("GET", VISE_SERVER_ADDRESS + resource_name);
-  _vise_server.send();
-}
-
-function _vise_send_msg_to_training_process(msg) {
-  _vise_server_send_post_request("msg_to_training_process " + msg);
+  _vise_server_get.open("GET", VISE_SERVER_ADDRESS + resource_name);
+  _vise_server_get.send();
 }
 
 function _vise_fetch_random_image() {
-  _vise_server.open("GET", VISE_SERVER_ADDRESS + "_random_image");
-  _vise_server.send();
+  _vise_server_get.open("GET", VISE_SERVER_ADDRESS + "_random_image");
+  _vise_server_get.send();
+}
+
+//
+// State
+//
+function _vise_state_listener() {
+  var response_str = this.responseText;
+  var content_type = this.getResponseHeader('Content-Type');
+
+  if ( content_type.includes("application/json") ) {
+    var json = JSON.parse(response_str);
+    _vise_update_state_info(json);
+  } else {
+    console.log("Received response of unknown content-type : " + content_type);
+  }
+}
+
+function _vise_fetch_state() {
+  _vise_state.open("GET", VISE_SERVER_ADDRESS + "_state");
+  _vise_state.send();
 }
 
 //
