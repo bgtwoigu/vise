@@ -2,7 +2,7 @@
 
  * [Relja Arandjelovic]
    * for sharing his original codebase `relja_retrival`
-   * for answering endless questions during the code upgrade and debugging sessions
+   * for answering many questions during the code upgrade and debugging sessions
 
 
 Abhishek Dutta  

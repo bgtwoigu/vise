@@ -137,16 +137,17 @@ void Connection::ResponseHttp200() {
 //
 
 void Connection::WriteResponse() {
-  boost::asio::async_write(socket_, boost::asio::buffer( response_buffer_.data() ),
+  boost::asio::async_write(socket_, boost::asio::buffer( response_buffer_.data() ), boost::asio::transfer_all(), 
                            strand_.wrap(boost::bind(&Connection::OnResponseWrite,
                                                     shared_from_this(),
                                                     boost::asio::placeholders::error
                                                     )
                                         )
                            );
+  //std::cout << "\nConnection::WriteResponse() : response_buffer_ = " << response_buffer_.size() << std::flush;
 }
 
-void Connection::SendHttpResponse(const std::string content_type, const std::string &content) {
+void Connection::SendHttpResponse(const std::string content_type, const std::string& content) {
   std::ostream http_response( &response_buffer_ );
   http_response << "HTTP/1.1 200 OK\r\n";
   std::time_t t = std::time(NULL);
@@ -165,11 +166,11 @@ void Connection::SendHttpResponse(const std::string content_type, const std::str
   response_code_ = 200;
 }
 
-void Connection::SendJsonResponse(const std::string &json) {
+void Connection::SendJsonResponse(const std::string& json) {
   SendHttpResponse("application/json", json);
 }
 
-void Connection::SendHtmlResponse(const std::string &html) {
+void Connection::SendHtmlResponse(const std::string& html) {
   SendHttpResponse("text/html", html);
 }
 
@@ -377,8 +378,7 @@ void Connection::HandleStateGetRequest( std::string resource_name) {
   std::cout << "\nstate_name = " << state_name << ", " << state_id << std::flush;
   if ( state_id != -1 ) {
     std::string state_html_fn = search_engine_->GetStateHtmlFn(state_id);
-    std::string state_html( resources_->GetFileContents(state_html_fn) );
-    std::cout << "\nstate_html_fn = " << state_html_fn << ", " << state_html.length() << std::flush;
+    std::string state_html = resources_->GetFileContents(state_html_fn);
     if ( state_id == SearchEngine::STATE_QUERY && search_engine_->GetCurrentStateId() == SearchEngine::STATE_QUERY ) {
       return;
     } else {
@@ -393,7 +393,7 @@ void Connection::HandleStateGetRequest( std::string resource_name) {
         state_html = search_engine_->GetStateComplexityInfo();
         SendCommand("_control_panel add <div class=\"action_button\" onclick=\"_vise_server_send_state_post_request('Info', 'proceed')\">Proceed</div>");
       }
-
+      std::cout << "\nstate_html_fn = " << state_html_fn << ", " << state_html << std::flush;
       SendHtmlResponse( state_html );
       return;
     }
@@ -472,17 +472,23 @@ void Connection::HandlePostRequest() {
     if ( tokens.size() == 2 ) {
       std::string search_engine_name = tokens.at(1);
       if ( tokens.at(0) == "create_search_engine" ) {
+std::cout << "\nA" << std::flush;
         if ( search_engine_->Exists( search_engine_name ) ) {
           SendMessage("Search engine by that name already exists!");
           SendHttpPostResponse( http_post_data, "ERR" );
         } else {
           if ( SearchEngine::ValidateName( search_engine_name ) ) {
             search_engine_->Init( search_engine_name );
-
+std::cout << "\nB" << std::flush;
             if ( search_engine_->UpdateState() ) {
               // send control message : state updated
+std::cout << "\nC" << std::flush;
               SendCommand("_state update_now");
+std::cout << "\nD" << std::flush;
               SendHttpPostResponse( http_post_data, "OK" );
+std::cout << "\nE" << std::flush;
+              SendCommand("_state update_now");
+std::cout << "\nF" << std::flush;
             } else {
               SendMessage("Cannot initialize search engine [" + search_engine_name + "]");
               SendHttpPostResponse( http_post_data, "ERR" );

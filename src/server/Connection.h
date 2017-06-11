@@ -103,9 +103,9 @@ class Connection : public boost::enable_shared_from_this<Connection>, private bo
 
   // HTTP Responses
   void WriteResponse();
-  void SendHttpResponse(const std::string content_type, const std::string &content);
-  void SendJsonResponse(const std::string &json);
-  void SendHtmlResponse(const std::string &html);
+  void SendHttpResponse(const std::string content_type, const std::string& content);
+  void SendJsonResponse(const std::string& json);
+  void SendHtmlResponse(const std::string& html);
   void SendImageResponse(const boost::filesystem::path &im_fn);
   void SendImageResponse(Magick::Image &im, std::string content_type);
   void SendHttpPostResponse(std::string http_post_data, std::string result);
