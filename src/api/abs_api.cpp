@@ -129,12 +129,6 @@ void InitReljaRetrivalFrontend(std::string dsetname, std::string configFn, std::
   FILE *pipe = popen( s.str().c_str(), "r");
   ViseMessageQueue::Instance()->Push("Query command _redirect http://localhost:9973 1000");
 
-  if ( pipe == NULL ) {
-    std::cerr << " [failed]" << std::flush;
-  } else {
-
-  }
-  pclose( pipe );
   std::cout << " [done]" << std::flush;
 }
 

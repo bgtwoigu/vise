@@ -294,7 +294,7 @@ void Connection::HandleGetRequest() {
     std::ostringstream engine_list_html;
     if ( engine_list.size() ) {
       for( unsigned int i=0; i<engine_list.size(); i++ ) {
-        engine_list_html << "<a onclick=\"_vise_load_search_engine(\"" << engine_list.at(i) << "\")\">"
+        engine_list_html << "<a onclick=\"_vise_load_search_engine('" << engine_list.at(i) << "')\">"
                          << "<figure></figure><p>" << engine_list.at(i) << "</p></a>";
       }
     } else  {
@@ -374,10 +374,11 @@ void Connection::HandleGetRequest() {
 void Connection::HandleStateGetRequest( std::string resource_name) {
   std::string state_name = resource_name;
   int state_id = search_engine_->GetStateId( resource_name );
+  std::cout << "\nstate_name = " << state_name << ", " << state_id << std::flush;
   if ( state_id != -1 ) {
     std::string state_html_fn = search_engine_->GetStateHtmlFn(state_id);
     std::string state_html( resources_->GetFileContents(state_html_fn) );
-    //std::cout << "\nstate_html_fn = " << state_html_fn << ", " << state_html.length() << std::flush;
+    std::cout << "\nstate_html_fn = " << state_html_fn << ", " << state_html.length() << std::flush;
     if ( state_id == SearchEngine::STATE_QUERY && search_engine_->GetCurrentStateId() == SearchEngine::STATE_QUERY ) {
       return;
     } else {
@@ -500,10 +501,11 @@ void Connection::HandlePostRequest() {
           } else {
             if ( search_engine_->Exists( search_engine_name ) ) {
               SendMessage("Loading search engine [" + search_engine_name + "] ...");
-              search_engine_->Init( search_engine_name );
-              SendHttpPostResponse( http_post_data, "Loaded search engine" );
+              search_engine_->Load( search_engine_name );
+              SendHttpPostResponse( http_post_data, "OK" );
+              //SendCommand("_state update_now");
             } else {
-              SendHttpPostResponse( http_post_data, "Search engine does not exist" );
+              SendHttpPostResponse( http_post_data, "ERR" );
               SendMessage("Search engine does not exists!");
             }
           }
@@ -559,7 +561,7 @@ void Connection::HandleStatePostData( int state_id ) {
       SendCommand("_state update_now");
       SendCommand("_content clear");
     }
-    SendHttpPostResponse( request_content_.str(), "OK" );
+    SendHttpPostResponse( "http post data of vise configuration", "OK" );
   } else if ( state_id == SearchEngine::STATE_INFO ) {
     if ( request_content_.str() == "proceed" ) {
       if ( search_engine_->UpdateState() ) {

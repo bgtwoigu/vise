@@ -27,7 +27,6 @@ class page0:
         self.browse= browse;
         self.doShowPath= doShowPath;
         self.def_dsetname= self.docMap.keys()[0];
-        
     
     @cherrypy.expose
     def index(self, page= '-1', more='false', numPerPage= "20", browse= None, dsetname= None ):

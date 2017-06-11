@@ -22,7 +22,7 @@ from auth import Authenticator;
 
 import api;
 
-import template, page0, dynamic_image, search_page, do_search, details;
+import template, page0, dynamic_image, search_page, do_search, details, shutdown;
 if True:
     import register_images;
 
@@ -155,6 +155,8 @@ class webserver:
         self.searchPage_obj= search_page.searchPage( self.pT, docMap, self.pathManager_obj );
         self.doSearch_obj= do_search.doSearch( self.pT, API_obj, docMap, self.pathManager_obj, upload_obj= self.upload_obj, examples= examples, guiOpts= guiOpts );
         self.details_obj= details.details( self.pT, API_obj, docMap, self.pathManager_obj, doRegistration= guiOpts['registration'][def_dsetname] );
+
+        self.shutdown_obj = shutdown.shutdown();
         if True:
             self.registerImages_obj= register_images.registerImages( self.pT, API_obj );
         if False:
@@ -167,6 +169,8 @@ class webserver:
         self.dosearch= self.doSearch_obj.index;
         self.details= self.details_obj.index;
         self.drawMatches= self.details_obj.drawMatches;
+
+        self.shutdown = self.shutdown_obj.index;
                 
         self.upload= self.upload_obj.upload;
         self.uploadNext= self.upload_obj.uploadNext;

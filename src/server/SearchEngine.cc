@@ -27,14 +27,21 @@ SearchEngine::SearchEngine(Resources* resources, boost::filesystem::path engine_
   acceptable_img_ext_.insert( ".pgm" );
   acceptable_img_ext_.insert( ".pnm" );
   acceptable_img_ext_.insert( ".ppm" );
+
+  //training_thread_ = new boost::thread();
+  //rr_thread_ = new boost::thread();
 }
 
 SearchEngine::~SearchEngine() {
-  std::cout << "\nStopping search engine " << GetName() << std::flush;
-  StopTraining();
+  std::cout << "\nDestroying search engine object" << std::flush;
+  //StopReljaRetrivalBackendFrontend();
+  //StopTraining();
 }
 
 void SearchEngine::Init(std::string name) {
+  //StopReljaRetrivalBackendFrontend();
+  //StopTraining();
+
   engine_name_ = name;
   engine_config_.clear();
   state_id_ = SearchEngine::STATE_NOT_LOADED;
@@ -1103,12 +1110,18 @@ void SearchEngine::StartTraining() {
 
 void SearchEngine::StopTraining() {
   try {
-    //std::cout << "\nAttempting to stop the training thread ... " << std::flush;
-    training_thread_->interrupt();
+    if ( training_thread_ ) {
+      std::cerr << "\nStopping training_thread_ ... " << std::flush;
+      //training_thread_->interrupt();
+      std::cerr << "[interrupt]," << std::flush;
+      delete training_thread_;
+      std::cerr << "[delete]" << std::flush;
+    }
   } catch( std::exception& e ) {
     std::cerr << "\nFailed to stop training_thread" << std::endl;
     std::cerr << e.what() << std::flush;    
   }
+
 }
 
 void SearchEngine::Train() {
@@ -1225,6 +1238,80 @@ void SearchEngine::Train() {
   SendCommand("SearchEngine", "_go_to home");
 }
 
+void SearchEngine::Load( std::string search_engine_name ) {
+  Init( search_engine_name );
+  if ( !UpdateState() ) {
+    SendMessage("Failed to load search engine [" + search_engine_name + "]");
+    return;
+  }
+  assert( GetCurrentStateId() == SearchEngine::STATE_SETTING );
+  //SendMessage("[" + search_engine_name + "] Loading settings ...");
+
+  std::string engine_config;
+  ViseUtils::FileLoad( GetEngineConfigFn().string(), engine_config );
+  SetEngineConfig( engine_config );
+  if ( !UpdateState() ) {
+    SendMessage("Failed to load configurations for search engine [" + search_engine_name + "]");
+    return;
+  }
+  assert( GetCurrentStateId() == SearchEngine::STATE_INFO );
+
+  if ( !UpdateState() ) {
+    return;
+  }
+  assert( GetCurrentStateId() == SearchEngine::STATE_PREPROCESS );
+  //SendMessage("[" + search_engine_name + "] Loading pre-processed data ...");
+
+  //search_engine_.Preprocess();
+  LoadImglist();
+  if ( !UpdateState() ) {
+    return;
+  }
+  assert( GetCurrentStateId() == SearchEngine::STATE_DESCRIPTOR );
+  //SendMessage("[" + search_engine_name + "] Loading descriptors ...");
+
+  //search_engine_.Descriptor();
+  if ( !UpdateState() ) {
+    return;
+  }
+  assert( GetCurrentStateId() == SearchEngine::STATE_CLUSTER );
+  //SendMessage("[" + search_engine_name + "] Loading clusters ...");
+
+  //search_engine_.Cluster();
+  if ( !UpdateState() ) {
+    return;
+  }
+  assert( GetCurrentStateId() == SearchEngine::STATE_ASSIGN );
+  //SendMessage("[" + search_engine_name + "] Loading assign ...");
+
+  //search_engine_.Assign();
+  if ( !UpdateState() ) {
+    return;
+  }
+  assert( GetCurrentStateId() == SearchEngine::STATE_HAMM );
+  //SendMessage("[" + search_engine_name + "] Loading hamm ...");
+
+  //search_engine_.Hamm();
+  if ( !UpdateState() ) {
+    return;
+  }
+  assert( GetCurrentStateId() == SearchEngine::STATE_INDEX );
+  //SendMessage("[" + search_engine_name + "] Loading index ...");
+
+  //search_engine_.Index();
+  if ( !UpdateState() ) {
+    return;
+  }
+  assert( GetCurrentStateId() == SearchEngine::STATE_QUERY );
+  //SendMessage("[" + search_engine_name + "] Loading complete :-)");
+  QueryInit();
+
+  //SendCommand("_log clear hide");
+  //SendCommand("_control_panel clear all");
+
+  //SendCommand("_state update_now");
+}
+
 void SearchEngine::QueryInit() {
 
   /*
@@ -1237,20 +1324,34 @@ void SearchEngine::QueryInit() {
   // while the user browses image list and prepares search area
   vise_load_search_index_thread_ = new boost::thread( boost::bind( &ViseServer::QueryLoadSearchIndex, this ) );
   */
-  boost::thread t( boost::bind( &SearchEngine::InitReljaRetrival, this ) );
+
+  StartReljaRetrivalBackendFrontend(); // will be remove in future
 }
 
 // TEMPORARY CODE -- WILL BE REMOVED IN FUTURE WHEN NEW FRONTEND IS RELEASED
 // setup relja_retrival backend and frontend (temporary, until JS based frontend is ready)
-extern void api_v2(std::vector< std::string > argv);
-void SearchEngine::InitReljaRetrival() {
-  boost::thread backend( boost::bind( &SearchEngine::InitReljaRetrivalBackend, this ) );
-  //boost::thread frontend( boost::bind( &ViseServer::InitReljaRetrivalFrontend, this ) );
-
-  backend.join();
-  //frontend.join();
+void SearchEngine::StartReljaRetrivalBackendFrontend() {
+  rr_thread_ = new boost::thread( boost::bind( &SearchEngine::InitReljaRetrivalBackend, this ) );
 }
 
+void SearchEngine::StopReljaRetrivalBackendFrontend() {
+
+  try {
+    if ( rr_thread_ ) {
+      std::cerr << "\nStopping rr_thread_ ... " << std::flush;
+      //rr_thread_->interrupt();
+      std::cerr << "[interrupt]," << std::flush;
+      delete rr_thread_;
+      std::cerr << "[delete]" << std::flush;
+    }
+  } catch( std::exception& e ) {
+    std::cerr << "\nFailed to stop relja_retrival frontend/backend" << std::endl;
+    std::cerr << e.what() << std::flush;    
+  }
+
+}
+
+extern void api_v2(std::vector< std::string > argv);
 // Note: frontend is invoked by src/api/abs_api.cpp::InitReljaRetrivalFrontend()
 void SearchEngine::InitReljaRetrivalBackend() {
   // start relja_retrival backend

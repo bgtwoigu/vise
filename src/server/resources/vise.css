@@ -114,7 +114,7 @@ body {
 }
 
 #log {
-  display: block;
+  display: none;
   padding: 1em;
   font-family: Mono;
   font-size: 0.8em;

@@ -129,6 +129,7 @@ public:
   void StartTraining();
   void StopTraining();
   void QueryInit();
+  void Load(std::string search_engine_name);
 
  private:
   std::string engine_name_;
@@ -136,7 +137,8 @@ public:
   boost::system::error_code error_;
 
   // threads
-  boost::thread *training_thread_;
+  boost::thread* training_thread_;
+  boost::thread* rr_thread_;
 
   // state variables
   int state_id_;
@@ -189,8 +191,10 @@ public:
   void Train();
   void InitEngineResources( std::string name );
   void RunClusterCommand();
-  void InitReljaRetrival();
   void InitReljaRetrivalBackend();
+  void StartReljaRetrivalBackendFrontend();
+  void StopReljaRetrivalBackendFrontend();
+  void StopAllOperations();
 };
 
 #endif /* _VISE_SEARCH_ENGINE_H */

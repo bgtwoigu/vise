@@ -47,9 +47,6 @@ class doSearch:
         
         self.def_dsetname= self.docMap.keys()[0];
     
-    
-    
-    
     @cherrypy.expose
     def index(self, docID= None, uploadID= None, xl= None, xu= None, yl= None, yu= None, startFrom= "1", numberToReturn= "20", tile= None, noText= None, dsetname= None):
         
