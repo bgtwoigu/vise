@@ -51,7 +51,7 @@ body {
 
 /* Displays the current state of search engine */      
 .footer_panel {
-  display: block;
+  display: none;
   position: fixed;
   bottom: 0px;
   z-index: 10;

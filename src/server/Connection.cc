@@ -509,7 +509,7 @@ void Connection::HandlePostRequest() {
             if ( search_engine_->Exists( search_engine_name ) ) {
               SendMessage("Loading search engine [" + search_engine_name + "] ...");
               search_engine_->Load( search_engine_name );
-              SendCommand("_state update_now");
+              //SendCommand("_state update_now");
               SendHttpPostResponse( http_post_data, "OK" );
             } else {
               SendHttpPostResponse( http_post_data, "ERR" );

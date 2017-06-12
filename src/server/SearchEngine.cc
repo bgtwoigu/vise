@@ -138,7 +138,7 @@ void SearchEngine::Preprocess() {
               imglist_fn_transformed_size_.at(i) = boost::filesystem::file_size(dest_fn.string().c_str());
 
               // to avoid overflow of the message queue
-              if ( (i % 5) == 0 ) {
+              if ( (i % 20) == 0 ) {
                 SendProgress( "Preprocess", i+1, imglist_.size() );
               }
             } catch( std::exception& e ) {
@@ -170,6 +170,7 @@ void SearchEngine::Preprocess() {
     }
 
     SendLog("Preprocess", "[Done]");
+    std::cout << "\n@todo: Message queue size = " << ViseMessageQueue::Instance()->GetSize() << std::flush;
 
     //if ( ! boost::filesystem::exists( imglist_fn_ ) ) {
     WriteImageListToFile( imglist_fn_.string(), imglist_ );
@@ -226,6 +227,8 @@ void SearchEngine::Descriptor() {
                                   trainDescsFn,
                                   trainNumDescs,
                                   featGetter_obj);
+
+    std::cout << "\n@todo: Message queue size = " << ViseMessageQueue::Instance()->GetSize() << std::flush;
   }
   SendLog("Descriptor", "Completed computing descriptors");
   SendCommand("Cluster", "_progress reset hide");
@@ -243,6 +246,7 @@ void SearchEngine::Cluster() {
 
     //boost::thread t( boost::bind( &SearchEngine::RunClusterCommand, this ) );
     RunClusterCommand();
+    std::cout << "\n@todo: Message queue size = " << ViseMessageQueue::Instance()->GetSize() << std::flush;
   } else {
     //SendLog("Cluster", "\nLoaded");
   }
@@ -309,6 +313,7 @@ void SearchEngine::Assign() {
                                      useRootSIFT,
                                      GetEngineConfigParam("descFn"),
                                      GetEngineConfigParam("assignFn"));
+    std::cout << "\n@todo: Message queue size = " << ViseMessageQueue::Instance()->GetSize() << std::flush;
   } else {
     //SendLog("Assign", "\nLoaded");
   }
@@ -336,6 +341,7 @@ void SearchEngine::Hamm() {
                                GetEngineConfigParam("assignFn"),
                                GetEngineConfigParam("hammFn"),
                                hammEmbBits);
+    std::cout << "\n@todo: Message queue size = " << ViseMessageQueue::Instance()->GetSize() << std::flush;
   } else {
     //SendLog("Hamm", "\nLoaded");
   }
@@ -392,6 +398,7 @@ void SearchEngine::Index() {
                       featGetter_obj,
                       GetEngineConfigParam("clstFn"),
                       embFactory);
+    std::cout << "\n@todo: Message queue size = " << ViseMessageQueue::Instance()->GetSize() << std::flush;
 
     delete embFactory;
   } else {

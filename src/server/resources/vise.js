@@ -200,6 +200,7 @@ function _vise_handle_command(sender, command_str) {
           _vise_fetch_state();
           break;
         case "show":
+          document.getElementById("footer_panel").style.display = "block";
           document.getElementById("footer").style.display = "block";
           break;
         case "hide":
@@ -329,52 +330,6 @@ function _vise_handle_control_panel_command(command) {
 }
 
 //
-// Maintainer of UI to reflect VISE current state 
-//
-function _vise_update_state_info( json ) {
-  var html = [];
-  for ( var i=1; i<json['state_name_list'].length; i++ ) {
-    html.push('<div class="state_block">');
-    if ( i === json['current_state_id'] ) {
-      html.push('<div class="title current_state">' + json['state_name_list'][i] + '</div>');
-    } else {
-      html.push('<div class="title">' + json['state_name_list'][i] + '</div>');
-    }
-    if ( json['state_info_list'][i] === '' ) {
-      html.push('<div class="info">&nbsp;</div>');
-    } else {
-      html.push('<div class="info">' + json['state_info_list'][i] + '</div>');
-    }
-    html.push('</div>');
-    html.push('<div class="state_block_sep">&rarr;</div>');
-  }
-  // remove the last arrow
-  html.splice(html.length - 1, 1);
-  document.getElementById("footer").innerHTML = html.join('');
-
-  if ( _vise_current_state_id !== json['current_state_id'] ) {
-    _vise_current_state_id = json['current_state_id'];
-    _vise_current_state_name = json['state_name_list'][_vise_current_state_id];
-    _vise_current_search_engine_name = json['search_engine_name'];
-    _vise_search_engine_state = json;
-    _vise_progress[_vise_current_state_name] = 0;
-
-    // request content for this state
-    _vise_server_send_get_request( _vise_current_state_name );
-
-    // reset the progress bar
-    _vise_reset_progress_bar();
-
-    if ( _vise_current_state_id > 2 ) {
-      _vise_fetch_random_image();
-    }
-
-    // update browser title
-    document.title = _vise_current_search_engine_name + " : VISE";
-  }
-}
-
-//
 // Vise Server requests at
 // http://localhost:8080
 //
@@ -450,6 +405,49 @@ function _vise_state_listener() {
 function _vise_fetch_state() {
   _vise_state.open("GET", VISE_SERVER_ADDRESS + "_state");
   _vise_state.send();
+}
+
+function _vise_update_state_info( json ) {
+  var html = [];
+  for ( var i=1; i<json['state_name_list'].length; i++ ) {
+    html.push('<div class="state_block">');
+    if ( i === json['current_state_id'] ) {
+      html.push('<div class="title current_state">' + json['state_name_list'][i] + '</div>');
+    } else {
+      html.push('<div class="title">' + json['state_name_list'][i] + '</div>');
+    }
+    if ( json['state_info_list'][i] === '' ) {
+      html.push('<div class="info">&nbsp;</div>');
+    } else {
+      html.push('<div class="info">' + json['state_info_list'][i] + '</div>');
+    }
+    html.push('</div>');
+    html.push('<div class="state_block_sep">&rarr;</div>');
+  }
+  // remove the last arrow
+  html.splice(html.length - 1, 1);
+  document.getElementById("footer").innerHTML = html.join('');
+
+  if ( _vise_current_state_id !== json['current_state_id'] ) {
+    _vise_current_state_id = json['current_state_id'];
+    _vise_current_state_name = json['state_name_list'][_vise_current_state_id];
+    _vise_current_search_engine_name = json['search_engine_name'];
+    _vise_search_engine_state = json;
+    _vise_progress[_vise_current_state_name] = 0;
+
+    // request content for this state
+    _vise_server_send_get_request( _vise_current_state_name );
+
+    // reset the progress bar
+    _vise_reset_progress_bar();
+
+    if ( _vise_current_state_id > 2 ) {
+      _vise_fetch_random_image();
+    }
+
+    // update browser title
+    document.title = _vise_current_search_engine_name + " : VISE";
+  }
 }
 
 //
