@@ -27,7 +27,9 @@ EXPOSE 9971 9973
 #
 # Define environment variables
 #
-ENV VGG_ROOT_DIR="/opt/ox/vgg/" VISE_ROOT_DIR="/opt/ox/vgg/vise/" VISE_CODE_DIR="/opt/ox/vgg/vise/vise-1.0.0-beta/" VISE_DATA_DIR="/opt/ox/vgg/vise/vise_data/" VISE_DEP_DIR="/opt/ox/vgg/vise/build_deps/" VISE_DEP_LIBDIR="/opt/ox/vgg/vise/build_deps/lib/" VISE_DEP_SRCDIR="/opt/ox/vgg/vise/build_deps/tmp_libsrc/"
+ENV VGG_ROOT_DIR="/opt/ox/vgg/" VISE_ROOT_DIR="/opt/ox/vgg/vise/" VISE_CODE_DIR="/opt/ox/vgg/vise/vise-1.0.0/" VISE_DEP_DIR="/opt/ox/vgg/vise/build_deps/" VISE_DEP_LIBDIR="/opt/ox/vgg/vise/build_deps/lib/" VISE_DEP_SRCDIR="/opt/ox/vgg/vise/build_deps/tmp_libsrc/" VISE_SERVER_PORT="9971" VISE_SERVER_NUMTHREADS="4"
+
+#ENV VGG_ROOT_DIR="~/vgg/" VISE_ROOT_DIR="~/vgg/vise/" VISE_CODE_DIR="~/vgg/vise/vise-1.0.0-beta/" VISE_DATA_DIR="~/vgg/vise/vise_data/" VISE_DEP_DIR="~/vgg/vise/build_deps/" VISE_DEP_LIBDIR="~/vgg/vise/build_deps/lib/" VISE_DEP_SRCDIR="~/vgg/vise/build_deps/tmp_libsrc/" VISE_SERVER_PORT="9971" VISE_SERVER_NUMTHREADS="4"
 
 #
 # Prepare environment variables
@@ -57,10 +59,10 @@ RUN /bin/bash -c 'export FASTANN_LIBDIR=$VISE_DEP_LIBDIR"fastann/" ; \
 # Download VISE source : http://vgg.gitlab.io/vise/release/vise-1.0.0-beta.tar.gz
 #
 RUN /bin/bash -c 'export FASTANN_LIBDIR=$VISE_DEP_LIBDIR"fastann/" ; \
- cd $VISE_CODE_DIR ; \
- curl -o vise-1.0.0-beta.tar.gz http://vgg.gitlab.io/vise/release/vise-1.0.0-beta.tar.gz ; \
- tar -zxf vise-1.0.0-beta.tar.gz ; \
- mkdir build ; \
+# cd $VISE_CODE_DIR ; \
+# curl -o vise-1.0.0.tar.gz http://vgg.gitlab.io/vise/release/vise-1.0.0.tar.gz ; \
+# tar -zxf vise-1.0.0.tar.gz ; \
+# mkdir build ; \
 #
 # Compile pypar and dkmeans
 #
@@ -69,13 +71,17 @@ RUN /bin/bash -c 'export FASTANN_LIBDIR=$VISE_DEP_LIBDIR"fastann/" ; \
  python setup.py install ; \
  cd $VISE_CODE_DIR"src/external/dkmeans_relja/" ; \
  python setup.py build ; \
- python setup.py install ; \
+# python setup.py install ; \
+ python setup.py install'
+
 #
 # Compile VISE
 #
- cd $VISE_CODE_DIR"build/" ; \
- cmake -DCMAKE_PREFIX_PATH=$FASTANN_LIBDIR ../src ; \
- make -j8'
+# cd $VISE_CODE_DIR"build/" ; \
+# cmake -DCMAKE_PREFIX_PATH=$FASTANN_LIBDIR ../src ; \
+# make -j8'
 
 #ENTRYPOINT ["$VISE_CODE_DIR'build/vise'", "$VISE_CODE_DIR", "$VISE_DATA_DIR"] # does not expant environment variables
-ENTRYPOINT $VISE_CODE_DIR"build/vise" $VISE_CODE_DIR /home/$USER/vgg/vise/
+#ENTRYPOINT $VISE_CODE_DIR"build/vise" $VISE_SERVER_PORT $VISE_SERVER_NUMTHREADS $VISE_CODE_DIR /home/$USER/vgg/vise/
+#ENTRYPOINT $VISE_CODE_DIR"build/vise" $VISE_SERVER_PORT $VISE_SERVER_NUMTHREADS $VISE_CODE_DIR /home/$USER/vgg/vise/
+
